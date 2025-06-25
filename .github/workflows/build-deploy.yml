@@ -8,6 +8,11 @@ on:
     - cron: '0 0 * * *' # Trigger workflow setiap hari pada tengah malam UTC
   workflow_dispatch: # Izinkan manual trigger dari GitHub UI
 
+  permissions: # <<< TAMBAHKAN BLOK INI
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
