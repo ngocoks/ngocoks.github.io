@@ -6,7 +6,7 @@
             {% for item in breadcrumbs %}
             <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
                 {% if item.item %}
-                    <a itemprop="item" href="{{ item.item }}"> {# Use item.item directly (absolute URL) #}
+                    <a itemprop="item" href="{{ item.item }}">
                         <span itemprop="name">{{ item.name }}</span>
                     </a>
                 {% else %}
@@ -23,8 +23,8 @@
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       "headline": "{{ post.title }}",
-      "image": "{{ post.images[0].url if post.images else '' }}",
-      "url": "{{ absolute_permalink }}", {# Use absolute_permalink for JSON-LD URL #}
+      "image": "{{ main_image_url }}", {# PERBAIKAN DI SINI: Menggunakan variabel yang sudah diproses Python #}
+      "url": "{{ absolute_permalink }}",
       "datePublished": "{{ post.published }}",
       "dateModified": "{{ post.updated }}",
       "author": {
@@ -33,14 +33,14 @@
       },
       "publisher": {
         "@type": "Organization",
-        "name": "Nama Blog Anda", {# Ganti dengan nama blog Anda #}
+        "name": "Nama Blog Anda", {# GANTI DENGAN NAMA BLOG ANDA #}
         "logo": {
           "@type": "ImageObject",
-          "url": "https://ngocoks.github.io/logo.png" {# Ganti dengan URL logo Anda, pastikan ini ada di root dist/ #}
+          "url": "{{ base_site_url }}/logo.png" {# Menggunakan base_site_url untuk URL absolut #}
         }
       },
-      "description": "{{ post.snippet | default(post.content | striptags | truncate(160)) }}",
-      "articleBody": "{{ post.content | striptags | replace('\\n', ' ') | replace('\\"', '\\"') }}"
+      "description": "{{ post.snippet | default('') | e }}", {# Menambahkan |e untuk auto-escape HTML #}
+      "articleBody": "{{ amp_content | striptags | replace('\\n', ' ') | replace('\\r', '') | replace('\\"', '\\"') | replace('\\', '\\\\') }}" {# PEMROSESAN STRING LEBIH KUAT UNTUK JSON #}
     }
     </script>
 
@@ -52,7 +52,7 @@
                 {% if post.labels %}
                 <br>Labels:
                 {% for label in post.labels %}
-                    <a href="/{{ label | slugify }}.html">{{ label }}</a>{% if not loop.last %}, {% endif %} {# Updated label URL #}
+                    <a href="/{{ label | slugify }}.html">{{ label }}</a>{% if not loop.last %}, {% endif %}
                 {% endfor %}
                 {% endif %}
             </p>
@@ -73,7 +73,7 @@
                     <amp-img src="{{ rp.thumbnail_url }}" width="80" height="60" layout="responsive" alt="{{ rp.title }}"></amp-img>
                 </div>
                 {% endif %}
-                <h4><a href="{{ rp.permalink }}">{{ rp.title }}</a></h4> {# Permalinks related posts juga di root #}
+                <h4><a href="{{ rp.permalink }}">{{ rp.title }}</a></h4>
             </div>
             {% endfor %}
         </div>
