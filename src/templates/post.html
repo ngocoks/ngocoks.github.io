@@ -22,25 +22,25 @@
     {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
-      "headline": "{{ post.title }}",
-      "image": "{{ main_image_url }}",
+      "headline": "{{ post.title | e }}",
+      "image": "{{ main_image_url | default('') }}",
       "url": "{{ absolute_permalink }}",
       "datePublished": "{{ post.published }}",
       "dateModified": "{{ post.updated }}",
       "author": {
         "@type": "Person",
-        "name": "{{ post.author.displayName }}"
+        "name": "{{ post.author.displayName | e }}"
       },
       "publisher": {
         "@type": "Organization",
-        "name": "Nama Blog Anda",
+        "name": "{{ blog_name | e }}",
         "logo": {
           "@type": "ImageObject",
           "url": "{{ base_site_url }}/logo.png"
         }
       },
       "description": "{{ post.snippet | default('') | e }}",
-      "articleBody": "{{ amp_content | striptags | replace('\\n', ' ') | replace('\\r', '') | replace('\\"', '\\"') | replace('\\', '\\\\') }}"
+      "articleBody": "{{ amp_content | striptags | replace('\\n', ' ') | replace('\\r', '') | replace('\\"', '\\"') | replace('\\', '\\\\') | e }}"
     }
     </script>
 
@@ -48,7 +48,7 @@
         <header class="article-header">
             <h1>{{ post.title }}</h1>
             <p class="article-meta">
-                Dipublikasikan pada: {{ post.published | split('T') | first }} oleh {{ post.author.displayName }} {# PERBAIKAN DI SINI #}
+                Dipublikasikan pada: {{ post.published | split('T') | first }} oleh {{ post.author.displayName }}
                 {% if post.labels %}
                 <br>Labels:
                 {% for label in post.labels %}
