@@ -1,15 +1,15 @@
 <header class="header">
     <button on="tap:sidebar-menu.toggle" class="hamburger" aria-label="Open navigation">☰</button>
-    <h1><a href="/">Nama Blog Anda</a></h1>
-    </header>
+    <h1><a href="/">{{ blog_name }}</a></h1>
+</header>
 
 <amp-sidebar id="sidebar-menu" layout="nodisplay" side="left">
     <button on="tap:sidebar-menu.toggle" class="close-button" aria-label="Close navigation">✕</button>
     <ul>
         <li><a href="/">Beranda</a></li>
         {% for label in labels %}
-        <li><a href="/{{ label | slugify }}.html">{{ label }}</a></li> {# Updated label URL #}
+        <li><a href="/{{ label | slugify }}.html">{{ label }}</a></li>
         {% endfor %}
-        <li><a href="/about.html">Tentang Kami</a></li>
+        {# Contoh: <li><a href="/about.html">Tentang Kami</a></li> #}
     </ul>
 </amp-sidebar>
