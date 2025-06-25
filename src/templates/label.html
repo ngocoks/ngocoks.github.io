@@ -13,12 +13,13 @@
             <div class="post-content">
                 <h2><a href="{{ post.permalink }}">{{ post.title }}</a></h2>
                 <p>{{ post.snippet }}</p>
-                <p><small>Published: {{ post.published | split('T') | first }}</small></p> {# PERBAIKAN DI SINI #}
+                <p><small>Published: {{ post.published | split('T') | first }}</small></p>
             </div>
         </div>
         {% endfor %}
     </div>
 
+    {# Anda bisa menambahkan paginasi di sini juga jika diperlukan #}
     <div class="pagination">
         {% if current_page > 1 %}
             <a href="{{ prev_page_url }}">Sebelumnya</a>
