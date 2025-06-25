@@ -25,7 +25,7 @@ LOGO_PATH = os.path.join(STATIC_DIR, "logo.png")
 # --- KONTROL PENGAMBILAN DATA & CACHING (DITAMBAHKAN) ---
 # Setel ke True untuk mengambil artikel dari API setiap kali build.
 # Setel ke False untuk TIDAK mengambil artikel dari API (hanya build ulang dengan data yang ada di cache).
-FETCH_ARTICLES_FROM_API = True # <<< TAMBAHKAN INI. Ubah ke False NANTI setelah cache terisi.
+FETCH_ARTICLES_FROM_API = False # <<< TAMBAHKAN INI. Ubah ke False NANTI setelah cache terisi.
 
 # Path untuk menyimpan/memuat cache data postingan
 POSTS_CACHE_FILE = os.path.join(os.path.dirname(__file__), "posts_cache.json")
