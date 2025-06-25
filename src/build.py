@@ -224,7 +224,7 @@ def build_footer(current_blog_name, base_site_url):
     <footer>
         <div class="container">
             <p>&copy; {datetime.now().year} {current_blog_name}. All rights reserved.</p>
-            <p>Powered by <a href="https://www.blogger.com/" target="_blank">Blogger</a> &amp; <a href="https://pages.github.com/" target="_blank">GitHub Pages</a>.</p>
+            
         </div>
     </footer>
     """
