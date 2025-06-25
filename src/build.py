@@ -15,7 +15,7 @@ OUTPUT_DIR = "dist" # Output situs statis yang akan di-deploy ke GitHub Pages
 # Contoh: Jika username Anda 'ngocoks' dan nama repo 'blogger-static', maka https://ngocoks.github.io/blogger-static
 # Jika Anda menggunakan custom domain atau ngocoks.github.io (tanpa nama repo), pastikan sesuai.
 BASE_SITE_URL = "https://ngocoks.github.io" # <<< GANTI INI DENGAN DOMAIN/SUBDOMAIN GITHUB PAGES ANDA!
-BLOG_NAME = "Nama Blog Anda" # <<< GANTI DENGAN NAMA BLOG ANDA
+BLOG_NAME = "Cerita Dewasa 2025" # <<< GANTI DENGAN NAMA BLOG ANDA
 
 # Path ke file CSS dan logo (akan di-inline atau disalin)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -27,7 +27,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --- FUNGSI BANTUAN ---
 
-def get_snippet(html_content, word_limit=100):
+def get_snippet(html_content, word_limit=30):
     """Mengekstrak snippet teks bersih dari konten HTML."""
     if not html_content:
         return ""
