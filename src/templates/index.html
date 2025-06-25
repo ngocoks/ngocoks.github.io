@@ -11,9 +11,9 @@
             </div>
             {% endif %}
             <div class="post-content">
-                <h2><a href="{{ post.permalink }}">{{ post.title }}</a></h2> {# Permalinks are now root-based #}
+                <h2><a href="{{ post.permalink }}">{{ post.title }}</a></h2>
                 <p>{{ post.snippet }}</p>
-                <p><small>Published: {{ post.published | split('T')[0] }}</small></p>
+                <p><small>Published: {{ post.published | split('T') | first }}</small></p> {# PERBAIKAN DI SINI #}
             </div>
         </div>
         {% endfor %}
@@ -21,11 +21,11 @@
 
     <div class="pagination">
         {% if current_page > 1 %}
-            <a href="{{ prev_page_url }}">Sebelumnya</a> {# URL paginasi di root #}
+            <a href="{{ prev_page_url }}">Sebelumnya</a>
         {% endif %}
         <span class="current-page">{{ current_page }}</span>
         {% if current_page < total_pages %}
-            <a href="{{ next_page_url }}">Selanjutnya</a> {# URL paginasi di root #}
+            <a href="{{ next_page_url }}">Selanjutnya</a>
         {% endif %}
     </div>
 {% endblock %}
