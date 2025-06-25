@@ -1,0 +1,238 @@
+/* Global styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    color: #333;
+}
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+
+/* Header styles */
+.header {
+    background-color: #333;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.header h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
+.header h1 a {
+    color: white;
+    text-decoration: none;
+}
+.hamburger {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2em;
+    cursor: pointer;
+    margin-right: 15px; /* Tambahkan sedikit jarak */
+}
+
+/* Sidebar styles */
+amp-sidebar {
+    background: #f0f0f0;
+    width: 250px;
+    padding: 20px;
+}
+amp-sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+amp-sidebar li {
+    margin-bottom: 10px;
+}
+amp-sidebar a {
+    display: block;
+    padding: 8px 0;
+    color: #333;
+    font-weight: bold;
+}
+amp-sidebar .close-button {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+}
+
+/* Content Area */
+.container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Post List (Index/Label) */
+.post-list .post-item {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+    align-items: flex-start; /* Align item to the top */
+}
+.post-list .post-item:last-child {
+    border-bottom: none;
+}
+.post-list .post-thumbnail {
+    flex-shrink: 0;
+    margin-right: 15px;
+    width: 120px; /* Lebar thumbnail lebih besar */
+    height: 90px; /* Tinggi thumbnail lebih besar */
+    overflow: hidden;
+    border-radius: 4px;
+}
+.post-list .post-thumbnail amp-img {
+    object-fit: cover;
+}
+.post-list .post-content {
+    flex-grow: 1;
+}
+.post-list h2 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    font-size: 1.3em;
+}
+.post-list p {
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: #666;
+}
+
+/* Pagination */
+.pagination {
+    text-align: center;
+    margin-top: 30px;
+}
+.pagination a {
+    display: inline-block;
+    padding: 8px 15px;
+    margin: 0 5px;
+    border: 1px solid #007bff;
+    border-radius: 4px;
+    color: #007bff;
+}
+.pagination a:hover {
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+}
+.pagination .current-page {
+    display: inline-block;
+    padding: 8px 15px;
+    margin: 0 5px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 4px;
+}
+
+/* Article Page */
+.article-header h1 {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+.article-meta {
+    font-size: 0.9em;
+    color: #777;
+    margin-bottom: 20px;
+}
+.article-content {
+    line-height: 1.7;
+    font-size: 1.1em;
+}
+.article-content amp-img {
+    margin: 15px 0;
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Related Posts */
+.related-posts {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+.related-posts h3 {
+    font-size: 1.5em;
+    margin-bottom: 20px;
+}
+.related-posts-list .related-item {
+    display: flex;
+    margin-bottom: 15px;
+    align-items: center;
+}
+.related-posts-list .related-thumbnail {
+    flex-shrink: 0;
+    margin-right: 10px;
+    width: 100px;
+    height: 75px;
+    overflow: hidden;
+    border-radius: 4px;
+}
+.related-posts-list .related-thumbnail amp-img {
+    object-fit: cover;
+}
+.related-posts-list h4 {
+    margin: 0;
+    font-size: 1.1em;
+}
+.related-posts-list h4 a {
+    color: #333;
+}
+
+/* Breadcrumbs */
+.breadcrumbs ol {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.9em;
+}
+.breadcrumbs li {
+    margin-right: 5px;
+}
+.breadcrumbs li:not(:last-child)::after {
+    content: '›';
+    margin-left: 5px;
+}
+.breadcrumbs a {
+    color: #555;
+}
+.breadcrumbs span {
+    color: #333;
+    font-weight: bold;
+}
+
+/* Footer */
+footer {
+    background-color: #333;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    margin-top: 40px;
+}
+footer p {
+    margin: 5px 0;
+    font-size: 0.9em;
+}
+footer a {
+    color: #007bff;
+}
