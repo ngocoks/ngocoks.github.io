@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <nav class="breadcrumbs" aria-label="breadcrumb">
+        <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+            {% for item in breadcrumbs %}
+            <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+                {% if item.item %}
+                    <a itemprop="item" href="{{ item.item }}"> {# Use item.item directly (absolute URL) #}
+                        <span itemprop="name">{{ item.name }}</span>
+                    </a>
+                {% else %}
+                    <span itemprop="name">{{ item.name }}</span>
+                {% endif %}
+                <meta itemprop="position" content="{{ item.position }}" />
+            </li>
+            {% endfor %}
+        </ol>
+    </nav>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "{{ post.title }}",
+      "image": "{{ post.images[0].url if post.images else '' }}",
+      "url": "{{ absolute_permalink }}", {# Use absolute_permalink for JSON-LD URL #}
+      "datePublished": "{{ post.published }}",
+      "dateModified": "{{ post.updated }}",
+      "author": {
+        "@type": "Person",
+        "name": "{{ post.author.displayName }}"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Nama Blog Anda", {# Ganti dengan nama blog Anda #}
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://ngocoks.github.io/logo.png" {# Ganti dengan URL logo Anda, pastikan ini ada di root dist/ #}
+        }
+      },
+      "description": "{{ post.snippet | default(post.content | striptags | truncate(160)) }}",
+      "articleBody": "{{ post.content | striptags | replace('\\n', ' ') | replace('\\"', '\\"') }}"
+    }
+    </script>
+
+    <article class="article-detail">
+        <header class="article-header">
+            <h1>{{ post.title }}</h1>
+            <p class="article-meta">
+                Dipublikasikan pada: {{ post.published | split('T')[0] }} oleh {{ post.author.displayName }}
+                {% if post.labels %}
+                <br>Labels:
+                {% for label in post.labels %}
+                    <a href="/{{ label | slugify }}.html">{{ label }}</a>{% if not loop.last %}, {% endif %} {# Updated label URL #}
+                {% endfor %}
+                {% endif %}
+            </p>
+        </header>
+        <div class="article-content">
+            {{ amp_content | safe }}
+        </div>
+    </article>
+
+    {% if related_posts %}
+    <section class="related-posts">
+        <h3>Postingan Terkait</h3>
+        <div class="related-posts-list">
+            {% for rp in related_posts %}
+            <div class="related-item">
+                {% if rp.thumbnail_url %}
+                <div class="related-thumbnail">
+                    <amp-img src="{{ rp.thumbnail_url }}" width="80" height="60" layout="responsive" alt="{{ rp.title }}"></amp-img>
+                </div>
+                {% endif %}
+                <h4><a href="{{ rp.permalink }}">{{ rp.title }}</a></h4> {# Permalinks related posts juga di root #}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+{% endblock %}
