@@ -1,0 +1,53 @@
+name: Build and Deploy Blogger Content
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests Jinja2 beautifulsoup4 python-slugify
+
+      - name: Run Python script to build site
+        env:
+          BLOGGER_API_KEY: ${{ secrets.BLOGGER_API_KEY }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+        run: python src/build.py
+
+      # Optional: Copy static assets like logo.png if you have them
+      - name: Copy static assets
+        run: |
+          cp src/templates/static/logo.png dist/ # Contoh jika logo Anda ada di src/templates/static/
+
+      - name: Upload artifact for deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist # Direktori output dari skrip Python Anda
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
