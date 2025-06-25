@@ -23,7 +23,7 @@
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       "headline": "{{ post.title }}",
-      "image": "{{ main_image_url }}", {# PERBAIKAN DI SINI: Menggunakan variabel yang sudah diproses Python #}
+      "image": "{{ main_image_url }}",
       "url": "{{ absolute_permalink }}",
       "datePublished": "{{ post.published }}",
       "dateModified": "{{ post.updated }}",
@@ -33,14 +33,14 @@
       },
       "publisher": {
         "@type": "Organization",
-        "name": "Nama Blog Anda", {# GANTI DENGAN NAMA BLOG ANDA #}
+        "name": "Nama Blog Anda",
         "logo": {
           "@type": "ImageObject",
-          "url": "{{ base_site_url }}/logo.png" {# Menggunakan base_site_url untuk URL absolut #}
+          "url": "{{ base_site_url }}/logo.png"
         }
       },
-      "description": "{{ post.snippet | default('') | e }}", {# Menambahkan |e untuk auto-escape HTML #}
-      "articleBody": "{{ amp_content | striptags | replace('\\n', ' ') | replace('\\r', '') | replace('\\"', '\\"') | replace('\\', '\\\\') }}" {# PEMROSESAN STRING LEBIH KUAT UNTUK JSON #}
+      "description": "{{ post.snippet | default('') | e }}",
+      "articleBody": "{{ amp_content | striptags | replace('\\n', ' ') | replace('\\r', '') | replace('\\"', '\\"') | replace('\\', '\\\\') }}"
     }
     </script>
 
@@ -48,7 +48,7 @@
         <header class="article-header">
             <h1>{{ post.title }}</h1>
             <p class="article-meta">
-                Dipublikasikan pada: {{ post.published | split('T')[0] }} oleh {{ post.author.displayName }}
+                Dipublikasikan pada: {{ post.published | split('T') | first }} oleh {{ post.author.displayName }} {# PERBAIKAN DI SINI #}
                 {% if post.labels %}
                 <br>Labels:
                 {% for label in post.labels %}
