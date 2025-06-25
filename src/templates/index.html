@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 class="page-title">Terbaru</h1>
+    <div class="post-list">
+        {% for post in posts %}
+        <div class="post-item">
+            {% if post.thumbnail_url %}
+            <div class="post-thumbnail">
+                <amp-img src="{{ post.thumbnail_url }}" width="100" height="75" layout="responsive" alt="{{ post.title }}"></amp-img>
+            </div>
+            {% endif %}
+            <div class="post-content">
+                <h2><a href="{{ post.permalink }}">{{ post.title }}</a></h2> {# Permalinks are now root-based #}
+                <p>{{ post.snippet }}</p>
+                <p><small>Published: {{ post.published | split('T')[0] }}</small></p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="pagination">
+        {% if current_page > 1 %}
+            <a href="{{ prev_page_url }}">Sebelumnya</a> {# URL paginasi di root #}
+        {% endif %}
+        <span class="current-page">{{ current_page }}</span>
+        {% if current_page < total_pages %}
+            <a href="{{ next_page_url }}">Selanjutnya</a> {# URL paginasi di root #}
+        {% endif %}
+    </div>
+{% endblock %}
