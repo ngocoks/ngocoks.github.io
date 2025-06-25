@@ -1,0 +1,219 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<link rel="canonical" href="{{ absolute_permalink | default(permalink | default('/')) }}"> {# Updated canonical #}
+<title>{{ title | default(post.title if post else 'My Blog') }}</title>
+
+<style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+<script async src="https://cdn.ampproject.org/v0.js"></script>
+
+<script async custom-element="amp-sidebar" src="https://cdn.ampproject.org/v0/amp-sidebar-0.1.js"></script>
+
+<style amp-custom>
+    /* Global styles */
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333;
+    }
+    a {
+        color: #007bff;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+
+    /* Header styles */
+    .header {
+        background-color: #333;
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .header h1 {
+        margin: 0;
+        font-size: 1.5em;
+    }
+    .header h1 a {
+        color: white;
+        text-decoration: none;
+    }
+    .hamburger {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 2em;
+        cursor: pointer;
+    }
+
+    /* Sidebar styles */
+    amp-sidebar {
+        background: #f0f0f0;
+        width: 250px;
+        padding: 20px;
+    }
+    amp-sidebar ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    amp-sidebar li {
+        margin-bottom: 10px;
+    }
+    amp-sidebar a {
+        display: block;
+        padding: 8px 0;
+        color: #333;
+        font-weight: bold;
+    }
+    amp-sidebar .close-button {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: none;
+        border: none;
+        font-size: 1.5em;
+        cursor: pointer;
+    }
+
+    /* Content Area */
+    .container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    /* Post List (Index/Label) */
+    .post-list .post-item {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 15px;
+    }
+    .post-list .post-item:last-child {
+        border-bottom: none;
+    }
+    .post-list .post-thumbnail {
+        flex-shrink: 0;
+        margin-right: 15px;
+    }
+    .post-list .post-content {
+        flex-grow: 1;
+    }
+    .post-list h2 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        font-size: 1.3em;
+    }
+    .post-list p {
+        font-size: 0.9em;
+        line-height: 1.5;
+        color: #666;
+    }
+    .post-list amp-img {
+        border-radius: 4px;
+    }
+
+    /* Pagination */
+    .pagination {
+        text-align: center;
+        margin-top: 30px;
+    }
+    .pagination a {
+        display: inline-block;
+        padding: 8px 15px;
+        margin: 0 5px;
+        border: 1px solid #007bff;
+        border-radius: 4px;
+        color: #007bff;
+    }
+    .pagination a:hover {
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+    }
+    .pagination .current-page {
+        display: inline-block;
+        padding: 8px 15px;
+        margin: 0 5px;
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+    }
+
+    /* Article Page */
+    .article-header h1 {
+        font-size: 2em;
+        margin-bottom: 10px;
+    }
+    .article-meta {
+        font-size: 0.9em;
+        color: #777;
+        margin-bottom: 20px;
+    }
+    .article-content {
+        line-height: 1.7;
+        font-size: 1.1em;
+    }
+    .article-content amp-img {
+        margin: 15px 0;
+        display: block;
+    }
+
+    /* Related Posts */
+    .related-posts {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+    .related-posts h3 {
+        font-size: 1.5em;
+        margin-bottom: 20px;
+    }
+    .related-posts-list .related-item {
+        display: flex;
+        margin-bottom: 15px;
+        align-items: center;
+    }
+    .related-posts-list .related-thumbnail {
+        flex-shrink: 0;
+        margin-right: 10px;
+    }
+    .related-posts-list h4 {
+        margin: 0;
+        font-size: 1.1em;
+    }
+    .related-posts-list h4 a {
+        color: #333;
+    }
+
+    /* Breadcrumbs */
+    .breadcrumbs ol {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 20px 0;
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 0.9em;
+    }
+    .breadcrumbs li {
+        margin-right: 5px;
+    }
+    .breadcrumbs li:not(:last-child)::after {
+        content: '›';
+        margin-left: 5px;
+    }
+    .breadcrumbs a {
+        color: #555;
+    }
+    .breadcrumbs span {
+        color: #333;
+        font-weight: bold;
+    }
+</style>
