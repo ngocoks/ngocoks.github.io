@@ -16,7 +16,7 @@ OUTPUT_DIR = "dist" # Output situs statis yang akan di-deploy ke GitHub Pages
 # Contoh: Jika username Anda 'ngocoks' dan nama repo 'blogger-static', maka https://ngocoks.github.io/blogger-static
 # Jika Anda menggunakan custom domain atau ngocoks.github.io (tanpa nama repo), pastikan sesuai.
 BASE_SITE_URL = "https://ngocoks.github.io" # <<< GANTI INI DENGAN DOMAIN/SUBDOMAIN GITHUB PAGES ANDA!
-BLOG_NAME = "Nama Blog Anda" # <<< GANTI DENGAN NAMA BLOG ANDA
+BLOG_NAME = "Cerita Dewasa 2025" # <<< GANTI DENGAN NAMA BLOG ANDA
 
 # Path ke file CSS dan logo (akan di-inline atau disalin)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -231,7 +231,7 @@ def build_footer(current_blog_name, base_site_url):
     <footer>
         <div class="container">
             <p>&copy; {datetime.now().year} {current_blog_name}. All rights reserved.</p>
-            <p>Powered by <a href="https://www.blogger.com/" target="_blank">Blogger</a> &amp; <a href="https://pages.github.com/" target="_blank">GitHub Pages</a>.</p>
+            
         </div>
     </footer>
     """
@@ -373,7 +373,7 @@ def build_site(posts):
 
         # Bangun head untuk halaman index
         index_head_html = build_head_content(
-            page_title=f"Beranda {BLOG_NAME} - Halaman {page_num}",
+            page_title=f"{BLOG_NAME} - Halaman {page_num}",
             canonical_url=current_index_permalink_abs,
             custom_css_content=custom_css_content
         )
