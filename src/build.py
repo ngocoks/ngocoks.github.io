@@ -37,16 +37,132 @@ def get_snippet(html_content, word_limit=30): # Mengurangi word_limit untuk snip
     words = text.split()
     return ' '.join(words[:word_limit]) + ('...' if len(words) > word_limit else '')
 
+### PERUBAHAN BARU DI SINI ###
+def truncate_html_for_accordion(html_content, chars_to_display=7000):
+    """
+    Memotong konten HTML pada jumlah karakter tertentu secara 'aman'
+    dan mengembalikannya sebagai dua bagian: terlihat dan tersembunyi.
+    Fungsi ini mirip dengan logika JavaScript Anda.
+    """
+    if not html_content:
+        return "", ""
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Elemen-elemen yang akan dianggap sebagai "self-closing" di konteks pemotongan
+    # Ini membantu mencegah tag seperti <img> atau <br> memotong struktur
+    self_closing_tags = ['img', 'br', 'hr', 'input', 'link', 'meta', 'area', 'base', 'col', 'embed', 'keygen', 'param', 'source', 'track', 'wbr']
+
+    current_length = 0
+    visible_elements = []
+    hidden_elements = []
+    
+    # Untuk melacak tag yang terbuka
+    open_tags_stack = []
+
+    # Iterasi melalui konten elemen-per-elemen
+    for child in soup.contents:
+        child_html = str(child)
+        child_text = child.get_text(strip=True) # Hanya teks terlihat
+        
+        # Jika elemen adalah tag
+        if hasattr(child, 'name') and child.name:
+            tag_name = child.name.lower()
+            if child_text: # Jika ada teks, hitung panjangnya
+                # Coba tentukan apakah elemen ini akan membuat kita melewati batas
+                if current_length + len(child_text) <= chars_to_display:
+                    visible_elements.append(child)
+                    current_length += len(child_text)
+                    if tag_name not in self_closing_tags:
+                        open_tags_stack.append(tag_name) # Simpan tag pembuka
+                else:
+                    # Elemen ini melebihi batas, perlu dipotong
+                    remaining_chars = chars_to_display - current_length
+                    
+                    if remaining_chars > 0:
+                        # Coba potong konten teks di dalam elemen ini
+                        # Ini adalah bagian yang paling kompleks dan mungkin tidak sempurna
+                        # untuk semua skenario HTML yang rumit.
+                        temp_soup_child = BeautifulSoup(child_html, 'html.parser')
+                        for string in temp_soup_child.strings:
+                            if remaining_chars <= 0:
+                                break
+                            
+                            original_string = str(string)
+                            string_len = len(original_string)
+                            
+                            if string_len > remaining_chars:
+                                string.replace_with(original_string[:remaining_chars])
+                                remaining_chars = 0
+                            else:
+                                remaining_chars -= string_len
+                        
+                        visible_elements.append(temp_soup_child)
+                        current_length = chars_to_display # Batas tercapai
+                    
+                    # Tambahkan sisa konten ke bagian tersembunyi
+                    hidden_elements.append(BeautifulSoup(html_content[html_content.find(child_html):], 'html.parser'))
+                    break # Berhenti memproses elemen terlihat
+            else: # Elemen tanpa teks (misalnya <img>, <br>)
+                if current_length <= chars_to_display: # Asumsi elemen kosong tidak dihitung karakter tapi harus tetap di bagian visible
+                    visible_elements.append(child)
+        else: # Ini adalah String (teks langsung di root, bukan dalam tag)
+            if current_length + len(child_text) <= chars_to_display:
+                visible_elements.append(child)
+                current_length += len(child_text)
+            else:
+                visible_elements.append(str(child)[:chars_to_display - current_length])
+                current_length = chars_to_display
+                # Tambahkan sisa teks ini dan elemen berikutnya ke hidden
+                hidden_elements.append(BeautifulSoup(html_content[html_content.find(child_html):], 'html.parser'))
+                break
+
+    # Gabungkan elemen yang terlihat
+    visible_html_soup = BeautifulSoup('', 'html.parser')
+    for el in visible_elements:
+        visible_html_soup.append(el)
+        
+    # Perbaiki tag yang tidak tertutup di bagian terlihat
+    # Ini memerlukan logic yang lebih dalam daripada hanya stack.
+    # Cara paling aman adalah memastikan parser BeautifulSoup menangani penutupan tag saat string di-re-parse.
+    # Untuk saat ini, kita mengandalkan BeautifulSoup untuk re-rendering valid.
+    
+    # Gabungkan elemen yang tersembunyi
+    hidden_html_soup = BeautifulSoup('', 'html.parser')
+    # Jika kita sudah pecah dari loop karena batas tercapai, hidden_elements sudah berisi sisa
+    if not hidden_elements: # Jika belum ada elemen tersembunyi, ambil sisanya dari soup asli
+        full_html_str = str(soup)
+        visible_html_str_temp = str(visible_html_soup)
+        
+        # Temukan indeks di mana bagian terlihat berakhir di HTML asli
+        # Ini adalah cara sederhana, mungkin tidak sempurna untuk semua kasus
+        idx = full_html_str.find(visible_html_str_temp)
+        if idx != -1:
+            end_idx = idx + len(visible_html_str_temp)
+            if end_idx < len(full_html_str):
+                hidden_html_soup = BeautifulSoup(full_html_str[end_idx:], 'html.parser')
+
+
+    # Kembali string HTML yang bersih
+    return str(visible_html_soup), str(hidden_html_soup)
+
+
 def convert_to_amp(html_content):
     """
-    Mengonversi HTML biasa ke HTML yang kompatibel dengan AMP.
-    Ini adalah fungsi dasar. Untuk konversi yang lebih canggih,
-    AMP DevTools atau pustaka khusus AMP akan lebih baik.
+    Mengonversi HTML biasa ke HTML yang kompatibel dengan AMP dan menambahkan amp-accordion
+    untuk fitur "detail otomatis".
     """
     if not html_content:
         return ""
+        
+    # --- Potong Konten untuk amp-accordion ---
+    # Definisikan batas karakter untuk konten yang terlihat
+    # Sesuaikan angka ini sesuai kebutuhan Anda
+    chars_for_summary = 7000 
     
-    soup = BeautifulSoup(html_content, 'html.parser')
+    visible_html, hidden_html = truncate_html_for_accordion(html_content, chars_to_display=chars_for_summary)
+
+    soup = BeautifulSoup(visible_html, 'html.parser') # Awalnya, proses hanya bagian yang terlihat
 
     # Ubah img menjadi amp-img
     for img in soup.find_all('img'):
@@ -89,11 +205,62 @@ def convert_to_amp(html_content):
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
+    # Gabungkan HTML yang sudah dibersihkan dengan bagian tersembunyi dalam amp-accordion
+    # Hanya tambahkan accordion jika memang ada konten tersembunyi
+    final_amp_html = str(soup)
+    
+    if hidden_html.strip(): # Pastikan ada konten tersembunyi
+        # Proses hidden_html juga untuk AMP compliance (amp-img, hapus script, dll.)
+        hidden_soup = BeautifulSoup(hidden_html, 'html.parser')
+        
+        for img in hidden_soup.find_all('img'):
+            amp_img = hidden_soup.new_tag('amp-img')
+            for attr, value in img.attrs.items():
+                if attr in ['src', 'alt']:
+                    amp_img[attr] = value
+                elif attr == 'width' and str(value).isdigit():
+                    amp_img[attr] = value
+                elif attr == 'height' and str(value).isdigit():
+                    amp_img[attr] = value
+            if 'width' not in amp_img.attrs: amp_img['width'] = '600'
+            if 'height' not in amp_img.attrs: amp_img['height'] = '400'
+            amp_img['layout'] = 'responsive'
+            img.replace_with(amp_img)
+
+        for tag in hidden_soup.find_all(attrs={'style': True}):
+            del tag['style']
+        for script_tag in hidden_soup.find_all('script'):
+            if 'type' in script_tag.attrs and script_tag['type'] == 'application/ld+json':
+                continue
+            script_tag.decompose()
+        for tag in hidden_soup.find_all(True):
+            if 'id' in tag.attrs and not tag.name.startswith('amp-'):
+                del tag['id']
+        for tag_name in invalid_tags:
+            for tag in hidden_soup.find_all(tag_name):
+                tag.decompose()
+        
+        processed_hidden_html = str(hidden_soup)
+
+        # Buat elemen amp-accordion
+        accordion_html = f"""
+<amp-accordion animate>
+  <section>
+    <h3>Baca Selanjutnya</h3>
+    <div>
+      {processed_hidden_html}
+    </div>
+  </section>
+</amp-accordion>
+"""
+        final_amp_html += accordion_html
+
     # Membersihkan entitas HTML ganda yang mungkin muncul dari Beautiful Soup
-    cleaned_html = str(soup)
-    # Beberapa karakter perlu di-encode ulang untuk HTML yang valid setelah BeautifulSoup
-    cleaned_html = cleaned_html.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
-    return cleaned_html
+    # Ini mungkin tidak diperlukan jika soup sudah menangani encoding dengan benar
+    # cleaned_html = final_amp_html.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+    return final_amp_html
+
+### AKHIR PERUBAHAN BARU ###
 
 def generate_breadcrumbs_data(post_title, post_labels, base_url):
     """Menghasilkan struktur breadcrumbs untuk JSON-LD."""
@@ -128,7 +295,7 @@ def get_post_image_url(post_data):
     """Mengekstrak URL gambar utama dari data postingan."""
     if 'images' in post_data and post_data['images']:
         return post_data['images'][0]['url']
-    
+        
     # Fallback: coba ekstrak dari konten jika tidak ada di 'images' API field
     soup = BeautifulSoup(post_data.get('content', ''), 'html.parser')
     first_img = soup.find('img')
@@ -192,11 +359,41 @@ def build_head_content(page_title, canonical_url, custom_css_content):
     <script async src="https://cdn.ampproject.org/v0.js"></script>
 
     <script async custom-element="amp-sidebar" src="https://cdn.ampproject.org/v0/amp-sidebar-0.1.js"></script>
-    
     <script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.1.js"></script>
+    ### PERUBAHAN BARU DI SINI ###
+    <script async custom-element="amp-accordion" src="https://cdn.ampproject.org/v0/amp-accordion-0.1.js"></script>
+    ### AKHIR PERUBAHAN BARU ###
 
     <style amp-custom>
         {custom_css_content}
+        /* Gaya tambahan untuk amp-accordion (bisa dimasukkan ke style.css juga) */
+        amp-accordion section {
+            border: 1px solid #ddd;
+            margin-top: 15px; /* Beri sedikit ruang dari konten utama */
+            border-radius: 4px;
+            overflow: hidden; /* Pastikan sudut membulat diterapkan */
+        }
+        amp-accordion section > h3 { /* Gunakan h3 karena ini header internal accordion */
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            margin: 0;
+            font-size: 1.1em;
+            cursor: pointer;
+            border-bottom: 1px solid #0056b3;
+            transition: background-color 0.3s ease;
+        }
+        amp-accordion section > h3:hover {
+            background-color: #0056b3;
+        }
+        amp-accordion section[expanded] > h3 {
+            /* Gaya saat terbuka, misalnya tidak ada border bawah */
+            border-bottom: none;
+        }
+        amp-accordion section > div {
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
     </style>
     """
     return head_html
@@ -205,6 +402,8 @@ def build_header_and_sidebar(all_labels, current_blog_name):
     """Membangun bagian header dan sidebar navigasi."""
     logo_tag = ""
     if os.path.exists(LOGO_PATH):
+        # Perhatikan: PATH LOGO DI SINI HARUS ABSOLUT UNTUK GITHUB PAGES
+        # Pastikan logo.png ada di root direktori 'dist'
         logo_tag = f'<amp-img src="{BASE_SITE_URL}/logo.png" width="80" height="40" layout="fixed" alt="Logo Blog"></amp-img>'
 
 
@@ -335,7 +534,7 @@ def build_site(posts):
                 </div>
             </div>
             """)
-        
+            
         # Navigasi paginasi
         pagination_html = "<div class='pagination'>"
         if page_num > 1:
@@ -395,7 +594,10 @@ def build_site(posts):
         permalink_rel = f"/{post_slug}-{post['id']}.html"
         permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
         
+        # ### PERUBAHAN BARU DI SINI: convert_to_amp sekarang sudah menyertakan accordion ###
         amp_content = convert_to_amp(post.get('content', ''))
+        ### AKHIR PERUBAHAN BARU ###
+
         main_image_url = get_post_image_url(post)
         
         # Escape string untuk JSON-LD
@@ -548,6 +750,8 @@ def build_site(posts):
         full_post_html = build_html_document(post_head_html, post_body_content)
         
         output_path = os.path.join(OUTPUT_DIR, permalink_rel.lstrip('/'))
+        # Pastikan direktori untuk permalink ada (misal: /kategori/artikel.html)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(full_post_html)
         print(f"  > Artikel selesai: {permalink_rel}")
