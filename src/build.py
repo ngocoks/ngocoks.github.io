@@ -22,20 +22,12 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 CUSTOM_CSS_PATH = os.path.join(STATIC_DIR, "style.css")
 LOGO_PATH = os.path.join(STATIC_DIR, "logo.png")
 
-# --- KONTROL PENGAMBILAN DATA & CACHING (DITAMBAHKAN) ---
-# Setel ke True untuk mengambil artikel dari API setiap kali build.
-# Setel ke False untuk TIDAK mengambil artikel dari API (hanya build ulang dengan data yang ada di cache).
-FETCH_ARTICLES_FROM_API = True # <<< TAMBAHKAN INI. Ubah ke False NANTI setelah cache terisi.
-
-# Path untuk menyimpan/memuat cache data postingan
-POSTS_CACHE_FILE = os.path.join(os.path.dirname(__file__), "posts_cache.json")
-
 # Pastikan direktori output ada
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --- FUNGSI BANTUAN ---
 
-def get_snippet(html_content, word_limit=30):
+def get_snippet(html_content, word_limit=100):
     """Mengekstrak snippet teks bersih dari konten HTML."""
     if not html_content:
         return ""
@@ -55,12 +47,6 @@ def convert_to_amp(html_content):
     
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    # <<< START: Tambahkan logika penghapusan tag <a> di sini >>>
-    for a_tag in soup.find_all('a'):
-        # Membuka tag <a>: menjaga teks di dalamnya tetapi menghapus link
-        a_tag.unwrap() # Ini akan menghapus tag <a> itu sendiri tetapi menjaga konten anaknya
-    # <<< END: Penambahan logika penghapusan tag <a> >>>
-
     # Ubah img menjadi amp-img
     for img in soup.find_all('img'):
         amp_img = soup.new_tag('amp-img')
@@ -72,7 +58,7 @@ def convert_to_amp(html_content):
                 amp_img[attr] = value
             elif attr == 'height' and str(value).isdigit():
                 amp_img[attr] = value
-            
+        
         # Berikan width/height default jika tidak ada, penting untuk layout AMP
         if 'width' not in amp_img.attrs: amp_img['width'] = '600'
         if 'height' not in amp_img.attrs: amp_img['height'] = '400'
@@ -149,26 +135,6 @@ def get_post_image_url(post_data):
     if first_img and 'src' in first_img.attrs:
         return first_img['src']
     return "" # Mengembalikan string kosong jika tidak ditemukan gambar
-
-def load_posts_from_cache():
-    """Memuat data postingan dari file cache."""
-    if os.path.exists(POSTS_CACHE_FILE):
-        try:
-            with open(POSTS_CACHE_FILE, 'r', encoding='utf-8') as f:
-                print(f"Memuat postingan dari cache: {POSTS_CACHE_FILE}")
-                return json.load(f)
-        except json.JSONDecodeError:
-            print("Error membaca cache JSON. Mengembalikan daftar kosong.")
-            return []
-    print("File cache postingan tidak ditemukan.")
-    return []
-
-def save_posts_to_cache(posts):
-    """Menyimpan data postingan ke file cache."""
-    with open(POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(posts, f, indent=2)
-    print(f"Postingan disimpan ke cache: {POSTS_CACHE_FILE}")
-
 
 def get_blogger_data(api_key, blog_id):
     """Mengambil semua postingan dari Blogger API."""
@@ -348,7 +314,7 @@ def build_site(posts):
                 </div>
             </div>
             """)
-            
+        
         # Navigasi paginasi
         pagination_html = "<div class='pagination'>"
         if page_num > 1:
@@ -361,8 +327,8 @@ def build_site(posts):
         pagination_html += "</div>"
 
         # Tentukan permalink halaman index saat ini untuk canonical
-        current_index_permalink_rel = "/index.html" if page_num == 1 else f"index_p{page_num}.html"
-        current_index_permalink_abs = f"{BASE_SITE_URL}/{current_index_permalink_rel}" # Pastikan ada '/' setelah BASE_SITE_URL
+        current_index_permalink_rel = "/index.html" if page_num == 1 else f"/index_p{page_num}.html"
+        current_index_permalink_abs = f"{BASE_SITE_URL}{current_index_permalink_rel}"
 
         # Bangun konten body untuk halaman index
         index_body_content = f"""
@@ -400,7 +366,7 @@ def build_site(posts):
         permalink_rel = f"/{post_slug}-{post['id']}.html"
         permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
         
-        amp_content = convert_to_amp(post.get('content', '')) # convert_to_amp sekarang akan menghapus tag <a>
+        amp_content = convert_to_amp(post.get('content', ''))
         main_image_url = get_post_image_url(post)
         
         # Escape string untuk JSON-LD
@@ -470,7 +436,7 @@ def build_site(posts):
                 </li>
                 """)
             else: # Item terakhir (artikel saat ini) tidak memiliki link
-                    breadcrumbs_list_items.append(f"""
+                 breadcrumbs_list_items.append(f"""
                 <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
                     <span itemprop="name">{item["name"]}</span>
                     <meta itemprop="position" content="{item["position"]}" />
@@ -630,30 +596,9 @@ if __name__ == "__main__":
     if not API_KEY or not BLOG_ID:
         print("Error: Variabel lingkungan BLOGGER_API_KEY atau BLOGGER_BLOG_ID tidak ditemukan.")
         print("Pastikan Anda mengatur mereka di GitHub Actions secrets.")
-        # Jika API_KEY/BLOG_ID tidak ada, kita tetap bisa build jika ada cache
-        posts_data = load_posts_from_cache() # Coba load dari cache
-        if not posts_data:
-            print("Tidak ada API key/ID dan tidak ada data di cache. Tidak bisa membangun situs.")
-        else:
-            build_site(posts_data) # Build dengan data cache
     else:
-        if FETCH_ARTICLES_FROM_API: # Logic ini sekarang memeriksa FETCH_ARTICLES_FROM_API
-            posts_data = get_blogger_data(API_KEY, BLOG_ID)
-            if posts_data is not None:
-                save_posts_to_cache(posts_data) # Simpan data baru ke cache
-                build_site(posts_data)
-            else:
-                print("Gagal mengambil data postingan dari Blogger API.")
-                # Coba load dari cache jika gagal ambil dari API
-                posts_data = load_posts_from_cache()
-                if posts_data:
-                    print("Mencoba membangun dengan data dari cache karena gagal mengambil dari API.")
-                    build_site(posts_data)
-                else:
-                    print("Tidak ada data baru dan tidak ada data di cache. Situs tidak dapat dibangun.")
-        else: # Jika FETCH_ARTICLES_FROM_API adalah False
-            print("FETCH_ARTICLES_FROM_API disetel ke False. Menggunakan data dari cache atau mengosongkan jika tidak ada.")
-            posts_data = load_posts_from_cache() # Coba load dari cache
-            if not posts_data:
-                print("Tidak ada data di cache. Situs mungkin dibangun tanpa artikel.")
-            build_site(posts_data) # Tetap build situs dengan data yang ada (bisa kosong)
+        posts_data = get_blogger_data(API_KEY, BLOG_ID)
+        if posts_data is not None:
+            build_site(posts_data)
+        else:
+            print("Gagal mengambil data postingan dari Blogger API. Situs tidak dapat dibangun.")
