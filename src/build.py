@@ -1,7 +1,7 @@
 import requests
 import json
 import os
-import shutil
+import shutil # Import shutil for file copying
 from bs4 import BeautifulSoup
 from slugify import slugify
 from datetime import datetime
@@ -10,172 +10,99 @@ from datetime import datetime
 API_KEY = os.getenv("BLOGGER_API_KEY")
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID")
 
-OUTPUT_DIR = "dist"
+OUTPUT_DIR = "dist" # Output situs statis yang akan di-deploy ke GitHub Pages
 
-BASE_SITE_URL = "https://ngocoks.github.io"
-BLOG_NAME = "Cerita Dewasa 2025"
+# URL dasar situs Anda di GitHub Pages. GANTI INI DENGAN URL REPO ANDA!
+# Contoh: Jika username Anda 'ngocoks' dan nama repo 'blogger-static', maka https://ngocoks.github.io/blogger-static
+# Jika Anda menggunakan custom domain atau ngocoks.github.io (tanpa nama repo), pastikan sesuai.
+BASE_SITE_URL = "https://ngocoks.github.io" # <<< GANTI INI DENGAN DOMAIN/SUBDOMAIN GITHUB PAGES ANDA!
+BLOG_NAME = "Cerita Dewasa 2025" # <<< GANTI DENGAN NAMA BLOG ANDA
 
+# Path ke file CSS dan logo (akan di-inline atau disalin)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 CUSTOM_CSS_PATH = os.path.join(STATIC_DIR, "style.css")
-LOGO_PATH = os.path.join(STATIC_DIR, "logo.png")
+LOGO_PATH = os.path.join(STATIC_DIR, "logo.png") # Pastikan logo.png ada di folder static
 
+# Pastikan direktori output ada
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --- FUNGSI BANTUAN ---
 
-def get_snippet(html_content, word_limit=30):
+def get_snippet(html_content, word_limit=30): # Mengurangi word_limit untuk snippet yang lebih ringkas
+    """Mengekstrak snippet teks bersih dari konten HTML."""
     if not html_content:
         return ""
     soup = BeautifulSoup(html_content, 'html.parser')
-    text = soup.get_text(separator=' ', strip=True)
+    text = soup.get_text(separator=' ', strip=True) # strip=True untuk membersihkan spasi ekstra
     words = text.split()
     return ' '.join(words[:word_limit]) + ('...' if len(words) > word_limit else '')
 
-def truncate_html_for_accordion(html_content, chars_to_display=7000):
-    if not html_content:
-        return "", ""
-
-    soup = BeautifulSoup(html_content, 'html.parser')
-    
-    current_length = 0
-    visible_elements = []
-    
-    full_html_children = list(soup.contents)
-
-    for i, child in enumerate(full_html_children):
-        child_html = str(child)
-        child_text = child.get_text(strip=True)
-        
-        if current_length + len(child_text) <= chars_to_display:
-            visible_elements.append(child)
-            current_length += len(child_text)
-        else:
-            remaining_chars = chars_to_display - current_length
-            
-            if remaining_chars > 0:
-                temp_soup_child = BeautifulSoup(child_html, 'html.parser')
-                # Walk through the text nodes of the child
-                for text_node in temp_soup_child.find_all(string=True):
-                    if remaining_chars <= 0:
-                        break
-                    
-                    original_string = str(text_node)
-                    string_len = len(original_string)
-                    
-                    if string_len > remaining_chars:
-                        text_node.replace_with(original_string[:remaining_chars])
-                        remaining_chars = 0
-                    else:
-                        remaining_chars -= string_len
-                visible_elements.append(temp_soup_child)
-            
-            hidden_elements_soup = BeautifulSoup('', 'html.parser')
-            for j in range(i, len(full_html_children)):
-                hidden_elements_soup.append(full_html_children[j])
-
-            return str(BeautifulSoup('', 'html.parser').extend(visible_elements)), str(hidden_elements_soup)
-
-    return html_content, "" # If content is shorter than chars_to_display
-
 def convert_to_amp(html_content):
+    """
+    Mengonversi HTML biasa ke HTML yang kompatibel dengan AMP.
+    Ini adalah fungsi dasar. Untuk konversi yang lebih canggih,
+    AMP DevTools atau pustaka khusus AMP akan lebih baik.
+    """
     if not html_content:
         return ""
-        
-    chars_for_summary = 7000 
     
-    visible_html, hidden_html = truncate_html_for_accordion(html_content, chars_to_display=chars_for_summary)
+    soup = BeautifulSoup(html_content, 'html.parser')
 
-    soup = BeautifulSoup(visible_html, 'html.parser')
-
+    # Ubah img menjadi amp-img
     for img in soup.find_all('img'):
         amp_img = soup.new_tag('amp-img')
         for attr, value in img.attrs.items():
             if attr in ['src', 'alt']:
                 amp_img[attr] = value
+            # Pastikan width/height adalah angka dan salin jika ada
             elif attr == 'width' and str(value).isdigit():
                 amp_img[attr] = value
             elif attr == 'height' and str(value).isdigit():
                 amp_img[attr] = value
         
+        # Berikan width/height default jika tidak ada, penting untuk layout AMP
         if 'width' not in amp_img.attrs: amp_img['width'] = '600'
         if 'height' not in amp_img.attrs: amp_img['height'] = '400'
         
-        amp_img['layout'] = 'responsive'
+        amp_img['layout'] = 'responsive' # Layout paling umum dan adaptif
         
         img.replace_with(amp_img)
 
+    # Hapus atribut style inline
     for tag in soup.find_all(attrs={'style': True}):
         del tag['style']
 
+    # Hapus script tag (kecuali type="application/ld+json")
     for script_tag in soup.find_all('script'):
         if 'type' in script_tag.attrs and script_tag['type'] == 'application/ld+json':
-            continue
+            continue # Biarkan script JSON-LD
         script_tag.decompose()
         
+    # Hapus atribut 'id' dari elemen non-AMP untuk mencegah konflik/validasi AMP
     for tag in soup.find_all(True):
         if 'id' in tag.attrs and not tag.name.startswith('amp-'):
             del tag['id']
             
+    # Hapus elemen yang tidak valid di AMP (misal: iframes, form, input, kecuali dari whitelist)
     invalid_tags = ['iframe', 'form', 'input', 'video', 'audio', 'object', 'embed']
     for tag_name in invalid_tags:
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
-    final_amp_html = str(soup)
-    
-    if hidden_html.strip():
-        hidden_soup = BeautifulSoup(hidden_html, 'html.parser')
-        
-        for img in hidden_soup.find_all('img'):
-            amp_img = hidden_soup.new_tag('amp-img')
-            for attr, value in img.attrs.items():
-                if attr in ['src', 'alt']:
-                    amp_img[attr] = value
-                elif attr == 'width' and str(value).isdigit():
-                    amp_img[attr] = value
-                elif attr == 'height' and str(value).isdigit():
-                    amp_img[attr] = value
-            if 'width' not in amp_img.attrs: amp_img['width'] = '600'
-            if 'height' not in amp_img.attrs: amp_img['height'] = '400'
-            amp_img['layout'] = 'responsive'
-            img.replace_with(amp_img)
-
-        for tag in hidden_soup.find_all(attrs={'style': True}):
-            del tag['style']
-        for script_tag in hidden_soup.find_all('script'):
-            if 'type' in script_tag.attrs and script_tag['type'] == 'application/ld+json':
-                continue
-            script_tag.decompose()
-        for tag in hidden_soup.find_all(True):
-            if 'id' in tag.attrs and not tag.name.startswith('amp-'):
-                del tag['id']
-        for tag_name in invalid_tags:
-            for tag in hidden_soup.find_all(tag_name):
-                tag.decompose()
-        
-        processed_hidden_html = str(hidden_soup)
-
-        accordion_html = f"""
-<amp-accordion animate>
-  <section>
-    <h3>Baca Selanjutnya</h3>
-    <div>
-      {processed_hidden_html}
-    </div>
-  </section>
-</amp-accordion>
-"""
-        final_amp_html += accordion_html
-
-    return final_amp_html
+    # Membersihkan entitas HTML ganda yang mungkin muncul dari Beautiful Soup
+    cleaned_html = str(soup)
+    # Beberapa karakter perlu di-encode ulang untuk HTML yang valid setelah BeautifulSoup
+    cleaned_html = cleaned_html.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+    return cleaned_html
 
 def generate_breadcrumbs_data(post_title, post_labels, base_url):
+    """Menghasilkan struktur breadcrumbs untuk JSON-LD."""
     breadcrumbs = [
         {"@type": "ListItem", "position": 1, "name": "Home", "item": base_url}
     ]
     
     if post_labels:
-        main_label = post_labels[0]
+        main_label = post_labels[0] # Ambil label pertama sebagai kategori utama
         breadcrumbs.append({
             "@type": "ListItem",
             "position": 2,
@@ -186,7 +113,7 @@ def generate_breadcrumbs_data(post_title, post_labels, base_url):
             "@type": "ListItem",
             "position": 3,
             "name": post_title,
-            "item": ""
+            "item": "" # URL akan disisipkan di template untuk item terakhir
         })
     else:
         breadcrumbs.append({
@@ -198,16 +125,19 @@ def generate_breadcrumbs_data(post_title, post_labels, base_url):
     return breadcrumbs
 
 def get_post_image_url(post_data):
+    """Mengekstrak URL gambar utama dari data postingan."""
     if 'images' in post_data and post_data['images']:
         return post_data['images'][0]['url']
-        
+    
+    # Fallback: coba ekstrak dari konten jika tidak ada di 'images' API field
     soup = BeautifulSoup(post_data.get('content', ''), 'html.parser')
     first_img = soup.find('img')
     if first_img and 'src' in first_img.attrs:
         return first_img['src']
-    return ""
+    return "" # Mengembalikan string kosong jika tidak ditemukan gambar
 
 def get_blogger_data(api_key, blog_id):
+    """Mengambil semua postingan dari Blogger API."""
     all_posts = []
     next_page_token = None
     
@@ -218,15 +148,15 @@ def get_blogger_data(api_key, blog_id):
         params = {
             "key": api_key,
             "fetchImages": True,
-            "maxResults": 500,
-            "fields": "items(id,title,url,published,updated,content,labels,images,author(displayName),replies(totalItems)),nextPageToken"
+            "maxResults": 500, # Max per request
+            "fields": "items(id,title,url,published,updated,content,labels,images,author(displayName),replies(totalItems)),nextPageToken" # Ditambahkan replies(totalItems) untuk data komentar, meskipun tidak digunakan di tampilan
         }
         if next_page_token:
             params["pageToken"] = next_page_token
 
         try:
             response = requests.get(url, params=params)
-            response.raise_for_status()
+            response.raise_for_status() # Akan memicu HTTPError untuk status kode 4xx/5xx
             data = response.json()
             
             posts_batch = data.get("items", [])
@@ -235,11 +165,11 @@ def get_blogger_data(api_key, blog_id):
 
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
-                break
+                break # Tidak ada halaman lagi
 
         except requests.exceptions.HTTPError as e:
             print(f"Error HTTP: {e.response.status_code} - {e.response.text}")
-            return None
+            return None # Kembalikan None untuk mengindikasikan kegagalan
         except requests.exceptions.RequestException as e:
             print(f"Error jaringan atau request: {e}")
             return None
@@ -250,6 +180,7 @@ def get_blogger_data(api_key, blog_id):
 # --- Fungsi untuk Membangun Bagian HTML ---
 
 def build_head_content(page_title, canonical_url, custom_css_content):
+    """Membangun bagian <head> dari dokumen HTML."""
     head_html = f"""
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
@@ -261,42 +192,17 @@ def build_head_content(page_title, canonical_url, custom_css_content):
     <script async src="https://cdn.ampproject.org/v0.js"></script>
 
     <script async custom-element="amp-sidebar" src="https://cdn.ampproject.org/v0/amp-sidebar-0.1.js"></script>
+    
     <script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.1.js"></script>
-    <script async custom-element="amp-accordion" src="https://cdn.ampproject.org/v0/amp-accordion-0.1.js"></script>
 
     <style amp-custom>
         {custom_css_content}
-        amp-accordion section {
-            border: 1px solid #ddd;
-            margin-top: 15px;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        amp-accordion section > h3 {
-            background-color: #007bff;
-            color: white;
-            padding: 15px;
-            margin: 0;
-            font-size: 1.1em;
-            cursor: pointer;
-            border-bottom: 1px solid #0056b3;
-            transition: background-color 0.3s ease;
-        }
-        amp-accordion section > h3:hover {
-            background-color: #0056b3;
-        }
-        amp-accordion section[expanded] > h3 {
-            border-bottom: none;
-        }
-        amp-accordion section > div {
-            padding: 15px;
-            background-color: #f9f9f9;
-        }
     </style>
     """
     return head_html
 
 def build_header_and_sidebar(all_labels, current_blog_name):
+    """Membangun bagian header dan sidebar navigasi."""
     logo_tag = ""
     if os.path.exists(LOGO_PATH):
         logo_tag = f'<amp-img src="{BASE_SITE_URL}/logo.png" width="80" height="40" layout="fixed" alt="Logo Blog"></amp-img>'
@@ -321,6 +227,7 @@ def build_header_and_sidebar(all_labels, current_blog_name):
     return header_html
 
 def build_footer(current_blog_name, base_site_url):
+    """Membangun bagian footer."""
     footer_html = f"""
     <footer>
         <div class="container">
@@ -332,6 +239,7 @@ def build_footer(current_blog_name, base_site_url):
     return footer_html
 
 def build_html_document(head_content, body_content):
+    """Membangun struktur dasar dokumen HTML AMP."""
     return f"""
 <!doctype html>
 <html ⚡ lang="en">
@@ -351,6 +259,7 @@ def build_site(posts):
         print("Tidak ada postingan untuk dibangun. Menghentikan.")
         return
 
+    # Baca Custom CSS satu kali
     try:
         with open(CUSTOM_CSS_PATH, 'r', encoding='utf-8') as f:
             custom_css_content = f.read()
@@ -358,10 +267,12 @@ def build_site(posts):
         print(f"Peringatan: File CSS '{CUSTOM_CSS_PATH}' tidak ditemukan. Menggunakan CSS kosong.")
         custom_css_content = ""
 
+    # Salin logo ke direktori output jika ada
     if os.path.exists(LOGO_PATH):
         shutil.copy(LOGO_PATH, os.path.join(OUTPUT_DIR, os.path.basename(LOGO_PATH)))
         print(f"Logo '{os.path.basename(LOGO_PATH)}' disalin ke '{OUTPUT_DIR}'.")
     
+    # Kumpulkan semua label unik
     all_unique_labels = set()
     for post in posts:
         if 'labels' in post:
@@ -371,8 +282,10 @@ def build_site(posts):
     unique_labels_list = sorted(list(all_unique_labels))
     print(f"Ditemukan {len(unique_labels_list)} label unik.")
 
+    # Urutkan postingan berdasarkan tanggal publikasi terbaru
     sorted_posts = sorted(posts, key=lambda p: p['published'], reverse=True)
     
+    # Bagian header dan sidebar (sama untuk semua halaman)
     global_header_sidebar_html = build_header_and_sidebar(unique_labels_list, BLOG_NAME)
     global_footer_html = build_footer(BLOG_NAME, BASE_SITE_URL)
 
@@ -390,6 +303,7 @@ def build_site(posts):
 
         list_items_html = []
         for p in paginated_posts:
+            # Ambil label pertama sebagai "kategori" utama untuk tampilan
             category_html = ""
             if p.get('labels'):
                 category_html = f'<span class="category">{p["labels"][0]}</span>'
@@ -421,7 +335,8 @@ def build_site(posts):
                 </div>
             </div>
             """)
-            
+        
+        # Navigasi paginasi
         pagination_html = "<div class='pagination'>"
         if page_num > 1:
             prev_page_link = "/index.html" if page_num == 2 else f"/index_p{page_num-1}.html"
@@ -432,15 +347,18 @@ def build_site(posts):
             pagination_html += f"<a href='{next_page_link}'>Selanjutnya</a>"
         pagination_html += "</div>"
 
+        # Tentukan permalink halaman index saat ini untuk canonical
         current_index_permalink_rel = "/index.html" if page_num == 1 else f"/index_p{page_num}.html"
         current_index_permalink_abs = f"{BASE_SITE_URL}{current_index_permalink_rel}"
 
+        # Tambahkan ruang iklan di sini
         ad_banner_space_html = """
         <div class="ad-banner-space">
             Space Iklan Banner
         </div>
         """
 
+        # Bangun konten body untuk halaman index
         index_body_content = f"""
         {global_header_sidebar_html}
         <main class="container">
@@ -454,12 +372,14 @@ def build_site(posts):
         {global_footer_html}
         """
 
+        # Bangun head untuk halaman index
         index_head_html = build_head_content(
             page_title=f"{BLOG_NAME} - Halaman {page_num}",
             canonical_url=current_index_permalink_abs,
             custom_css_content=custom_css_content
         )
 
+        # Bangun dokumen HTML lengkap
         full_index_html = build_html_document(index_head_html, index_body_content)
         
         output_filename = "index.html" if page_num == 1 else f"index_p{page_num}.html"
@@ -476,14 +396,15 @@ def build_site(posts):
         permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
         
         amp_content = convert_to_amp(post.get('content', ''))
-
         main_image_url = get_post_image_url(post)
         
+        # Escape string untuk JSON-LD
         escaped_title = json.dumps(post['title'])[1:-1]
         escaped_snippet = json.dumps(get_snippet(post.get('content', '')))[1:-1]
         escaped_author_name = json.dumps(post['author']['displayName'])[1:-1]
         escaped_blog_name = json.dumps(BLOG_NAME)[1:-1]
         
+        # Related Posts (Ambil 3 postingan lain dari label yang sama, jika ada)
         related_posts_html = ""
         related_posts = []
         post_labels = post.get('labels', [])
@@ -527,9 +448,11 @@ def build_site(posts):
             </section>
             """
 
+        # Breadcrumbs data untuk JSON-LD
         breadcrumbs_data = generate_breadcrumbs_data(post['title'], post_labels, BASE_SITE_URL)
         breadcrumbs_json = json.dumps(breadcrumbs_data)
 
+        # HTML untuk Breadcrumbs di halaman
         breadcrumbs_list_items = []
         for idx, item in enumerate(breadcrumbs_data):
             if item["item"]:
@@ -541,7 +464,7 @@ def build_site(posts):
                     <meta itemprop="position" content="{item["position"]}" />
                 </li>
                 """)
-            else:
+            else: # Item terakhir (artikel saat ini) tidak memiliki link
                     breadcrumbs_list_items.append(f"""
                 <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
                     <span itemprop="name">{item["name"]}</span>
@@ -556,11 +479,13 @@ def build_site(posts):
         </nav>
         """
 
+        # HTML untuk labels di bawah artikel
         labels_html = ""
         if post_labels:
             labels_links = [f'<a href="/{slugify(label)}.html">{label}</a>' for label in post_labels]
             labels_html = f"<br>Labels: {', '.join(labels_links)}"
 
+        # JSON-LD untuk artikel
         json_ld_script = f"""
         <script type="application/ld+json">
         {{
@@ -584,10 +509,12 @@ def build_site(posts):
             }}
           }},
           "description": "{escaped_snippet}"
+          // "articleBody": "{json.dumps(amp_content).replace('\\n', ' ').replace('\\r', '')[1:-1]}" // articleBody cenderung terlalu besar untuk JSON-LD, jadi dihapus agar lebih ringkas
         }}
         </script>
         """
 
+        # Bangun konten body untuk halaman artikel
         post_body_content = f"""
         {global_header_sidebar_html}
         <main class="container">
@@ -610,16 +537,17 @@ def build_site(posts):
         {global_footer_html}
         """
         
+        # Bangun head untuk halaman artikel
         post_head_html = build_head_content(
             page_title=f"{post['title']} - {BLOG_NAME}",
             canonical_url=permalink_abs,
             custom_css_content=custom_css_content
         )
 
+        # Bangun dokumen HTML lengkap
         full_post_html = build_html_document(post_head_html, post_body_content)
         
         output_path = os.path.join(OUTPUT_DIR, permalink_rel.lstrip('/'))
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(full_post_html)
         print(f"  > Artikel selesai: {permalink_rel}")
@@ -631,12 +559,14 @@ def build_site(posts):
         permalink_rel = f"/{label_slug}.html"
         permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
         
+        # Filter postingan untuk label ini
         posts_for_label = [
             p for p in sorted_posts if 'labels' in p and label_name in p['labels']
         ]
         
         list_items_html = []
         for p in posts_for_label:
+            # Ambil label pertama sebagai "kategori" utama untuk tampilan
             category_html = ""
             if p.get('labels'):
                 category_html = f'<span class="category">{p["labels"][0]}</span>'
@@ -669,6 +599,7 @@ def build_site(posts):
             </div>
             """)
 
+        # Bangun konten body untuk halaman label
         label_body_content = f"""
         {global_header_sidebar_html}
         <main class="container">
@@ -680,12 +611,14 @@ def build_site(posts):
         {global_footer_html}
         """
 
+        # Bangun head untuk halaman label
         label_head_html = build_head_content(
             page_title=f"Label: {label_name} - {BLOG_NAME}",
             canonical_url=permalink_abs,
             custom_css_content=custom_css_content
         )
 
+        # Bangun dokumen HTML lengkap
         full_label_html = build_html_document(label_head_html, label_body_content)
         
         output_path = os.path.join(OUTPUT_DIR, permalink_rel.lstrip('/'))
