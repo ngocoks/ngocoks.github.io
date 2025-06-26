@@ -373,7 +373,7 @@ def build_head_content(page_title, canonical_url, custom_css_content):
             border-radius: 4px;
             overflow: hidden; /* Pastikan sudut membulat diterapkan */
         }
-        amp-accordion section > h3 { /* Gunakan h3 karena ini header internal accordion */
+        amp-accordion section > h3 { 
             background-color: #007bff;
             color: white;
             padding: 15px;
