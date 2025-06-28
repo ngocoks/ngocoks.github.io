@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Memproses Tautan Anda...</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Anda akan dialihkan dalam <span id="countdown">5</span> detik</h1>
+        <p>Mohon jangan tutup halaman ini. Klik iklan di bawah untuk mendukung kami!</p>
+        <div class="ad-area">
+            </div>
+        <p>URL Tujuan: <span id="targetUrlDisplay">Memuat...</span></p>
+    </div>
+    <script>
+// --- Fungsi Bantuan Enkripsi/Dekripsi (Contoh Sederhana) ---
+// Catatan: Base64 BUKAN enkripsi aman. Ini hanya untuk 'mengaburkan' URL.
+// Untuk keamanan lebih, perlu algoritma yang lebih kompleks atau server-side.
+function encodeBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
+
+function decodeBase64(str) {
+    try {
+        return decodeURIComponent(escape(atob(str)));
+    } catch (e) {
+        console.error("Error decoding URL:", e);
+        return null; // Mengembalikan null jika ada error dekripsi
+    }
+}
+// -------------------------------------------------------------
+
+const params = new URLSearchParams(window.location.search);
+// Kita asumsikan parameter URL yang berisi link terenkripsi adalah KEY pertama
+// Contoh: ?YW55dGFuZ2xpbmtlZGluX3lvdXJfcmVhbGx5X3NlY3JldF9saW5r
+const encodedLink = params.keys().next().value; // Mengambil nama parameter sebagai kode terenkripsi
+
+const countdownElement = document.getElementById('countdown');
+const targetUrlDisplay = document.getElementById('targetUrlDisplay');
+let targetUrl = null;
+
+if (encodedLink) {
+    targetUrl = decodeBase64(encodedLink);
+    if (targetUrl) {
+        targetUrlDisplay.textContent = new URL(targetUrl).hostname; // Tampilkan hanya domainnya
+    }
+}
+
+if (!targetUrl) {
+    // Tangani jika tidak ada URL terenkripsi atau dekripsi gagal
+    if (targetUrlDisplay) {
+        targetUrlDisplay.textContent = "Tautan tidak valid atau rusak.";
+    }
+    if (countdownElement) {
+        countdownElement.textContent = "0"; // Hentikan hitungan mundur
+    }
+    alert("Tautan yang diminta tidak valid atau rusak. Silakan periksa kembali.");
+    // Opsional: Arahkan ke halaman utama setelah beberapa detik
+    setTimeout(() => {
+        window.location.href = "/";
+    }, 3000); // Kembali ke root setelah 3 detik
+} else {
+    let countdown = 5; // Durasi hitungan mundur
+    if (countdownElement) {
+        countdownElement.textContent = countdown;
+    }
+
+    const interval = setInterval(() => {
+        countdown--;
+        if (countdownElement) {
+            countdownElement.textContent = countdown;
+        }
+
+        if (countdown <= 0) {
+            clearInterval(interval);
+            window.location.href = targetUrl; // Alihkan ke URL target
+        }
+    }, 1000);
+}
+</script>
+</body>
+</html>
