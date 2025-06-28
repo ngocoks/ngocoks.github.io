@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generator Safelink</title>
+</head>
+<body>
+    <h1>Buat Link Safelink Anda</h1>
+    <label for="originalUrl">Masukkan URL Asli:</label><br>
+    <input type="text" id="originalUrl" style="width: 400px;" placeholder="contoh: https://ceritagetar.wordpress.com"><br><br>
+    
+    <button onclick="generateSafelink()">Buat Safelink</button><br><br>
+    
+    <label for="safelinkResult">Link Safelink Anda:</label><br>
+    <input type="text" id="safelinkResult" style="width: 400px;" readonly><br>
+    <button onclick="copySafelink()">Salin Link</button>
+
+    <script>
+        // --- Fungsi Bantuan Enkripsi (HARUS SAMA dengan script.js) ---
+        function encodeBase64(str) {
+            return btoa(unescape(encodeURIComponent(str)));
+        }
+        // -------------------------------------------------------------
+
+        const baseURL = "https://ngocoks.github.io/src/index.html?"; // Ganti dengan URL GitHub Pages Anda
+
+        function generateSafelink() {
+            const originalUrl = document.getElementById('originalUrl').value;
+            if (originalUrl) {
+                const encoded = encodeBase64(originalUrl);
+                const fullSafelink = baseURL + encoded;
+                document.getElementById('safelinkResult').value = fullSafelink;
+            } else {
+                alert("Masukkan URL asli terlebih dahulu.");
+            }
+        }
+
+        function copySafelink() {
+            const safelinkInput = document.getElementById('safelinkResult');
+            safelinkInput.select();
+            safelinkInput.setSelectionRange(0, 99999); // Untuk perangkat seluler
+            document.execCommand("copy");
+            alert("Link safelink berhasil disalin!");
+        }
+    </script>
+</body>
+</html>
