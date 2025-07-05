@@ -348,7 +348,7 @@ def build_site(posts):
         pagination_html += "</div>"
 
         # Tentukan permalink halaman index saat ini untuk canonical
-        current_index_permalink_rel = "/index.html" if page_num == 1 else f"/index_p{page_num}.html"
+        current_index_permalink_rel = "/" if page_num == 1 else f"/index_p{page_num}.html"
         current_index_permalink_abs = f"{BASE_SITE_URL}{current_index_permalink_rel}"
 
         # Tambahkan ruang iklan di sini
