@@ -1,0 +1,96 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--tg-theme-bg-color, #f0f2f5); /* Mengikuti tema Telegram jika ada, default terang */
+    color: var(--tg-theme-text-color, #333); /* Mengikuti tema Telegram jika ada, default gelap */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Mengatur konten ke atas */
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.container {
+    background-color: var(--tg-theme-secondary-bg-color, #ffffff); /* Mengikuti tema Telegram */
+    padding: 20px;
+    margin: 15px; /* Margin di pinggir */
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+h1, h2 {
+    color: var(--tg-theme-text-color, #007bff); /* Menggunakan warna teks tema */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    background-color: var(--tg-theme-button-color, #e9ecef); /* Warna latar item daftar */
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: background-color 0.2s ease;
+}
+
+li:hover {
+    background-color: var(--tg-theme-link-color, #dcdcdc); /* Warna hover item daftar */
+}
+
+li a {
+    text-decoration: none;
+    color: var(--tg-theme-link-color, #007bff); /* Menggunakan warna link tema */
+    font-weight: bold;
+    display: block;
+}
+
+#story-detail-section h2, #story-detail-section p {
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+#story-detail-section hr {
+    border: none;
+    border-top: 1px solid var(--tg-theme-hint-color, #ddd); /* Warna garis pemisah */
+    margin: 20px 0;
+}
+
+.story-content {
+    line-height: 1.8;
+    color: var(--tg-theme-text-color, #333);
+}
+
+.story-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 15px auto;
+    border-radius: 8px;
+}
+
+button#back-button {
+    background-color: var(--tg-theme-button-color, #6c757d); /* Warna tombol abu-abu */
+    color: var(--tg-theme-button-text-color, white); /* Warna teks tombol */
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-bottom: 20px;
+    transition: background-color 0.2s ease;
+    display: block; /* Agar tombol memiliki lebar penuh */
+    width: fit-content; /* Sesuai konten */
+}
+
+button#back-button:hover {
+    background-color: var(--tg-theme-link-color, #5a6268);
+}
