@@ -12,24 +12,32 @@ import re
 API_KEY = os.getenv("BLOGGER_API_KEY")
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID")
 OUTPUT_DIR = "dist" # Output situs statis yang akan di-deploy ke GitHub Pages
+# URL dasar situs Anda di GitHub Pages. GANTI INI DENGAN URL REPO ANDA!
 BASE_SITE_URL = "https://ngocoks.github.io" # <<< GANTI INI DENGAN DOMAIN/SUBDOMAIN GITHUB PAGES ANDA!
 BLOG_NAME = "Cerita Dewasa 2025" # <<< GANTI DENGAN NAMA BLOG ANDA
+# Path ke file CSS dan logo (akan di-inline atau disalin)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 CUSTOM_CSS_PATH = os.path.join(STATIC_DIR, "style.css")
-LOGO_PATH = os.path.join(STATIC_DIR, "logo.png") 
+LOGO_PATH = os.path.join(STATIC_DIR, "logo.png") # Pastikan logo.png ada di folder static
 
-ALL_BLOGGER_POSTS_CACHE_FILE = "all_blogger_posts_cache.json"
-PUBLISHED_LOG_FILE = "published_posts.json"
+# File untuk menyimpan semua postingan dari Blogger dan log postingan yang sudah dipublikasikan
+ALL_BLOGGER_POSTS_CACHE_FILE = "all_blogger_posts_cache.json" # Cache semua post dari Blogger
+PUBLISHED_LOG_FILE = "published_posts.json" # Log ID post yang sudah dipublikasikan
 
 # --- Konfigurasi Gemini API ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Pastikan API key tersedia
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set. Please set it in your GitHub Secrets or local environment.")
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel("gemini-1.5-flash") # Specify the model name directly
+
+# Buat folder output jika belum ada
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# --- Penggantian Kata Khusus ---
 REPLACEMENT_MAP = {
     "memek": "serambi lempit",
     "kontol": "rudal",
@@ -60,17 +68,21 @@ def remove_anchor_tags_and_apply_replacements_to_html(html_content):
     """
     if not html_content:
         return ""
-    print("DEBUG: Memulai remove_anchor_tags_and_apply_replacements_to_html.")
+
     soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Hapus tag <a>, tapi pertahankan teksnya
     for a_tag in soup.find_all('a'):
-        a_tag.unwrap()
+        a_tag.unwrap() # Mengganti tag <a> dengan isinya
+
+    # Terapkan penggantian kata pada semua node teks
     for element in soup.find_all(string=True):
         if isinstance(element, NavigableString) and element.parent.name not in ['script', 'style']:
             original_text = str(element)
             new_text = apply_custom_word_replacements_on_text_node(original_text)
             if new_text != original_text:
                 element.replace_with(new_text)
-    print("DEBUG: Selesai remove_anchor_tags_and_apply_replacements_to_html.")
+
     return str(soup)
 
 def extract_pure_text_from_html(html_content):
@@ -81,14 +93,21 @@ def extract_pure_text_from_html(html_content):
     """
     if not html_content:
         return ""
-    print("DEBUG: Memulai extract_pure_text_from_html.")
+
     soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Hilangkan elemen script, style, dan GAMBAR
     for script_or_style_or_img in soup(["script", "style", "img"]):
         script_or_style_or_img.decompose()
+
+    # Ubah tag <br> menjadi newline eksplisit
     for br_tag in soup.find_all('br'):
         br_tag.replace_with('\n')
+
     output_parts = []
     block_tags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'pre', 'blockquote']
+
+    # Tangani teks langsung di dalam body jika ada sebelum tag blok
     if soup.body:
         for content in soup.body.contents:
             if isinstance(content, str) and content.strip():
@@ -96,6 +115,7 @@ def extract_pure_text_from_html(html_content):
                 output_parts.append('\n\n')
             elif content.name in block_tags:
                 break
+
     for element in soup.find_all(block_tags):
         text_content = element.get_text(separator=' ', strip=True)
         if text_content:
@@ -112,7 +132,7 @@ def extract_pure_text_from_html(html_content):
                
     clean_text = ''.join(output_parts)
     clean_text = re.sub(r'\n{2,}', '\n\n', clean_text).strip()
-    print("DEBUG: Selesai extract_pure_text_from_html.")
+   
     return clean_text
 
 def sanitize_filename(title):
@@ -122,11 +142,15 @@ def sanitize_filename(title):
 
 # --- Fungsi Edit 300 Kata Pertama dengan Gemini AI ---
 def edit_first_300_words_with_gemini(post_id, post_title, pure_text_for_gemini):
+    """
+    Mengirim 300 kata pertama (dalam bentuk teks murni) ke Gemini AI untuk diedit.
+    Mengembalikan teks murni yang sudah diedit.
+    """
     words = pure_text_for_gemini.split()
    
     if len(words) < 50:
         print(f"[{post_id}] Artikel terlalu pendek (<50 kata) untuk diedit oleh Gemini AI. Melewati pengeditan.")
-        return pure_text_for_gemini
+        return pure_text_for_gemini # Mengembalikan teks murni asli jika tidak diedit
        
     first_300_words_list = words[:300]
     first_300_words_text = " ".join(first_300_words_list)
@@ -136,35 +160,27 @@ def edit_first_300_words_with_gemini(post_id, post_title, pure_text_for_gemini):
     try:
         prompt = (
             f"Cerita Berikut adalah cuplikan dari 300 kata pertama dari cerita utuhnya, Perbaiki tata bahasa, ejaan, dan tingkatkan keterbacaan paragraf berikut. "
-            f"Paraphrase signifikan setiap kata, dan buat agar lebih mengalir sehingga 300 kata pertama ini beda dari aslinya.\n\n"
-            f"**Tulis ulang paragraf ini SELALU dalam BAHASA INDONESIA yang baku dan alami.**\n\n"
+            f"Paraphrase signifikan setiap kata, dan buat agar lebih mengalir sehingga 300 kata pertama ini beda dari aslinya:\n\n"
             f"{first_300_words_text}"
         )
        
-        print(f"DEBUG: Mengirim permintaan ke Gemini untuk ID {post_id}...")
         response = gemini_model.generate_content(prompt)
-        print(f"DEBUG: Menerima respons dari Gemini untuk ID {post_id}.")
-
         edited_text_from_gemini = response.text
        
         print(f"✅ Gemini AI selesai mengedit bagian pertama artikel ID: {post_id}.")
        
+        # Pastikan output Gemini juga dalam bentuk teks murni, tanpa HTML yang mungkin ia hasilkan
         cleaned_edited_text = extract_pure_text_from_html(edited_text_from_gemini) 
        
-        if len(words) > 300:
-            remaining_original_pure_text = " ".join(words[300:])
-            return cleaned_edited_text + "\n\n" + remaining_original_pure_text
-        else:
-            return cleaned_edited_text
+        return cleaned_edited_text
        
     except Exception as e:
         print(f"❌ Error saat mengedit dengan Gemini AI untuk artikel ID: {post_id} - {e}. Menggunakan teks asli untuk bagian ini.")
-        return pure_text_for_gemini
+        return pure_text_for_gemini # Mengembalikan teks murni asli jika ada error
 
 # --- Fungsi untuk memuat dan menyimpan status postingan yang sudah diterbitkan ---
 def load_published_posts_state():
     """Memuat ID postingan yang sudah diterbitkan dari file state."""
-    print("DEBUG: Memuat status postingan yang sudah diterbitkan.")
     if os.path.exists(PUBLISHED_LOG_FILE):
         with open(PUBLISHED_LOG_FILE, 'r') as f:
             try:
@@ -176,7 +192,6 @@ def load_published_posts_state():
 
 def save_published_posts_state(published_ids):
     """Menyimpan ID postingan yang sudah diterbitkan ke file state."""
-    print("DEBUG: Menyimpan status postingan yang sudah diterbitkan.")
     with open(PUBLISHED_LOG_FILE, 'w') as f:
         json.dump(list(published_ids), f)
 
@@ -195,14 +210,13 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
         url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts"
         params = {
             "key": api_key,
-            "fetchImages": True,
-            "maxResults": 500,
+            "fetchImages": True, # Untuk mendapatkan URL gambar jika ada
+            "maxResults": 500, # Max per request
             "fields": "items(id,title,url,published,updated,content,labels,images,author(displayName)),nextPageToken"
         }
         if next_page_token:
             params["pageToken"] = next_page_token
         try:
-            print(f"DEBUG: Memulai permintaan Blogger API dengan pageToken: {next_page_token or 'None'}")
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
@@ -222,26 +236,30 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
             return None
     
     processed_posts = []
-    print("DEBUG: Memulai pemrosesan setiap postingan yang diambil.")
     for post in all_posts:
+        # --- Pemrosesan Judul ---
         original_title = post.get('title', '')
-        processed_title = apply_custom_word_replacements_on_text_node(original_title)
-        post['processed_title'] = processed_title
+        processed_title = apply_custom_word_replacements_on_text_node(original_title) # Penggantian kata pada judul
+        post['processed_title'] = processed_title # Simpan judul yang sudah diproses
 
+        # --- Pemrosesan Konten Awal ---
         raw_content = post.get('content', '')
+       
+        # Konten yang akan dipublikasikan (HTML dipertahankan, <a> dihapus, kata diganti)
         content_html_ready_for_pub = remove_anchor_tags_and_apply_replacements_to_html(raw_content)
         post['content_html_ready_for_pub'] = content_html_ready_for_pub
 
-        pure_text_for_gemini = extract_pure_text_from_html(content_html_ready_for_pub)
+        # Konten TEKS MURNI untuk Gemini AI (semua HTML dihapus, termasuk gambar)
+        pure_text_for_gemini = extract_pure_text_from_html(content_html_ready_for_pub) # Gunakan versi yang sudah disensor
         post['pure_text_content_for_gemini'] = pure_text_for_gemini
        
+        # Snippet untuk deskripsi, diambil dari teks murni
         snippet_text = pure_text_for_gemini
         post['description_snippet'] = snippet_text[:200].replace('\n', ' ').strip()
         if len(snippet_text) > 200:
             post['description_snippet'] += "..."
            
         processed_posts.append(post)
-    print("DEBUG: Selesai memproses semua postingan yang diambil.")
 
     print(f"Total {len(processed_posts)} postingan berhasil diambil dan diproses awal dari Blogger.")
     
@@ -250,7 +268,135 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
     print(f"Semua postingan yang sudah diproses awal disimpan ke '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
     return processed_posts
 
-# ... (bagian lain dari fungsi-fungsi build_head_content, build_header_and_sidebar, build_footer, build_html_document, get_snippet, get_post_image_url, generate_breadcrumbs_data tidak diubah di sini, tapi harus lengkap di file Anda) ...
+# --- Fungsi untuk Membangun Bagian HTML ---
+def get_snippet(html_content, word_limit=30):
+    """Mengekstrak snippet teks bersih dari konten HTML (menggunakan extract_pure_text_from_html)."""
+    if not html_content:
+        return ""
+    text = extract_pure_text_from_html(html_content)
+    words = text.split()
+    return ' '.join(words[:word_limit]) + ('...' if len(words) > word_limit else '')
+
+def get_post_image_url(post_data):
+    """Mengekstrak URL gambar utama dari data postingan untuk thumbnail/metadata."""
+    if 'images' in post_data and post_data['images']:
+        return post_data['images'][0]['url']
+        
+    soup = BeautifulSoup(post_data.get('content', ''), 'html.parser')
+    first_img = soup.find('img')
+    if first_img and 'src' in first_img.attrs:
+        return first_img['src']
+    return ""
+
+def generate_breadcrumbs_data(post_title, post_labels, base_url):
+    """Menghasilkan struktur breadcrumbs untuk JSON-LD."""
+    breadcrumbs = [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": base_url}
+    ]
+    
+    if post_labels:
+        main_label = post_labels[0]
+        breadcrumbs.append({
+            "@type": "ListItem",
+            "position": 2,
+            "name": main_label,
+            "item": f"{base_url}/{slugify(main_label)}.html"
+        })
+        breadcrumbs.append({
+            "@type": "ListItem",
+            "position": 3,
+            "name": post_title,
+            "item": ""
+        })
+    else:
+        breadcrumbs.append({
+            "@type": "ListItem",
+            "position": 2,
+            "name": post_title,
+            "item": ""
+        })
+    return breadcrumbs
+
+def build_head_content(page_title, canonical_url, custom_css_content):
+    """Membangun bagian <head> dari dokumen HTML."""
+    head_html = f"""
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="canonical" href="{canonical_url}">
+    <title>{page_title}</title>
+    <meta name="google-site-verification" content="wxkvpqMwTAGfQ5E0xjycz-q-Elshg4pLh8B_7JhzgGk" />
+    <style>
+        {custom_css_content}
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            const hamburger = document.querySelector('.hamburger');
+            const closeButton = document.querySelector('.close-button');
+            const sidebar = document.getElementById('sidebar-menu');
+
+            if (hamburger) {{
+                hamburger.addEventListener('click', function() {{
+                    sidebar.classList.toggle('active');
+                }});
+            }}
+
+            if (closeButton) {{
+                closeButton.addEventListener('click', function() {{
+                    sidebar.classList.remove('active');
+                }});
+            }}
+        }});
+    </script>
+    """
+    return head_html
+
+def build_header_and_sidebar(all_labels, current_blog_name):
+    """Membangun bagian header dan sidebar navigasi."""
+    logo_tag = ""
+    if os.path.exists(LOGO_PATH):
+        logo_tag = f'<img src="{BASE_SITE_URL}/logo.png" width="80" height="40" alt="Logo Blog">'
+
+    header_html = f"""
+    <header class="header">
+        <button class="hamburger" aria-label="Open navigation">☰</button>
+        <h1><a href="/">{logo_tag} {current_blog_name}</a></h1>
+        <div class="search-icon">
+        </div>
+    </header>
+    <nav id="sidebar-menu" class="sidebar">
+        <button class="close-button" aria-label="Close navigation">✕</button>
+        <ul>
+            <li><a href="/">Beranda</a></li>
+            {"".join([f'<li><a href="/{slugify(label)}.html">{label}</a></li>' for label in all_labels])}
+        </ul>
+    </nav>
+    """
+    return header_html
+
+def build_footer(current_blog_name, base_site_url):
+    """Membangun bagian footer."""
+    footer_html = f"""
+    <footer>
+        <div class="container">
+            <p>&copy; {datetime.now(timezone.utc).year} {current_blog_name}. All rights reserved.</p>
+        </div>
+    </footer>
+    """
+    return footer_html
+
+def build_html_document(head_content, body_content):
+    """Membangun struktur dasar dokumen HTML standar."""
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {head_content}
+</head>
+<body>
+    {body_content}
+</body>
+</html>
+"""
 
 def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
     print("Memulai proses pembangunan situs harian untuk artikel terpilih...")
@@ -271,39 +417,58 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
         print(f"Logo '{os.path.basename(LOGO_PATH)}' disalin ke '{OUTPUT_DIR}'.")
     
     current_post_labels = set(post_to_publish.get('labels', []))
+    
     unique_labels_for_sidebar = sorted(list(all_labels_across_all_posts)) 
     print(f"Ditemukan {len(unique_labels_for_sidebar)} label unik (untuk sidebar).")
 
     global_header_sidebar_html = build_header_and_sidebar(unique_labels_for_sidebar, BLOG_NAME)
     global_footer_html = build_footer(BLOG_NAME, BASE_SITE_URL)
 
+    # --- Ambil tanggal hari ini ---
     today_date_obj = datetime.now(timezone.utc)
-    today_date_formatted_iso = today_date_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
+    today_date_formatted_iso = today_date_obj.strftime('%Y-%m-%dT%H:%M:%SZ') # Format ISO 8601
     today_date_display = today_date_obj.strftime('%d %b, %Y')
 
+    # --- Render Halaman Artikel Individual ---
     print(f"Membangun halaman artikel untuk '{post_to_publish['processed_title']}'...")
     
     post = post_to_publish
-    post_slug = sanitize_filename(post['processed_title'])
-    permalink_rel = f"/{post_slug}-{post['id']}.html"
+    post_slug = sanitize_filename(post['processed_title']) # Gunakan judul yang sudah diproses
+    permalink_rel = f"/{post_slug}-{post['id']}.html" # Tambahkan ID untuk keunikan
     permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
     
+    # Konten HTML asli yang sudah dihapus <a> dan disensor kata
     original_content_html_ready_for_pub = post.get('content_html_ready_for_pub', '')
-    edited_pure_text_combined = post.get('processed_content_with_gemini', '')
+    # Teks murni hasil edit Gemini untuk 300 kata pertama
+    # --- Ambil teks murni dari HTML asli ---
+pure_text_from_original_html = extract_pure_text_from_html(original_content_html_ready_for_pub)
+original_words = pure_text_from_original_html.split()
 
+# Teks hasil edit Gemini (300 kata pertama)
+edited_pure_text_from_gemini = post.get('processed_content_with_gemini', '').strip()
+
+if len(original_words) >= 300 and edited_pure_text_from_gemini:
+    # Ambil sisa dari teks asli (tanpa 300 kata pertama)
+    remaining_original_text = " ".join(original_words[300:])
+
+    # Gabungkan hasil Gemini + sisa asli
+    combined_full_text = edited_pure_text_from_gemini + "
+
+" + remaining_original_text
+
+    # Ubah ke format HTML paragraf
     final_article_content_html = ""
-    print("DEBUG: Memulai logika penggabungan konten Gemini.")
-    if edited_pure_text_combined and post_to_publish.get('pure_text_content_for_gemini') and \
-       len(post_to_publish['pure_text_content_for_gemini'].split()) >= 50:
-        
-        for i, paragraph in enumerate(edited_pure_text_combined.split('\n\n')):
-            if paragraph.strip():
-                formatted_paragraph = paragraph.replace('\n', '<br>')
-                final_article_content_html += f"<p>{formatted_paragraph}</p>\n"
-            print(f"DEBUG: Memproses paragraf {i+1} untuk final HTML.") # Tambahan debug
-    else:
-        final_article_content_html = original_content_html_ready_for_pub
-    print("DEBUG: Selesai logika penggabungan konten Gemini.")
+    for paragraph in combined_full_text.split('
+
+'):
+        if paragraph.strip():
+            formatted_paragraph = paragraph.replace('
+', '<br>')
+            final_article_content_html += f"<p>{formatted_paragraph}</p>
+"
+else:
+    print("⚠️ Konten Gemini kosong atau artikel terlalu pendek. Gunakan konten asli.")
+    final_article_content_html = original_content_html_ready_for_pub
 
     main_image_url = get_post_image_url(post)
     
@@ -364,7 +529,7 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
         "name": "{escaped_blog_name}",
         "logo": {{
           "@type": "ImageObject",
-          "url": "/logo.png"
+          "url": "{BASE_SITE_URL}/logo.png"
         }}
       }},
       "description": "{escaped_description}"
@@ -401,11 +566,11 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
     
     output_path = os.path.join(OUTPUT_DIR, permalink_rel.lstrip('/'))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    print(f"DEBUG: Menulis file artikel ke {output_path}")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(full_post_html)
     print(f"  > Artikel selesai: {permalink_rel}")
 
+    # --- Render Halaman Index (hanya menampilkan artikel yang baru dipublikasikan) ---
     print("Membangun ulang halaman index...")
     
     list_items_html = []
@@ -469,18 +634,18 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
     output_filename = "index.html"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    print(f"DEBUG: Menulis file index ke {output_path}")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(full_index_html)
     print(f"  > Halaman Index selesai dengan artikel hari ini.")
 
+    # --- Render Halaman Label (hanya untuk label dari artikel yang baru dipublikasikan) ---
     print("Membangun halaman label untuk artikel hari ini...")
-    for label_name in current_post_labels:
+    for label_name in current_post_labels: # Hanya label dari artikel yang diproses hari ini
         label_slug = slugify(label_name)
         permalink_rel_label = f"/{label_slug}.html"
         permalink_abs_label = f"{BASE_SITE_URL}{permalink_rel_label}"
         
-        posts_for_label = [post]
+        posts_for_label = [post] # Hanya artikel ini yang akan muncul di halaman labelnya
         
         list_items_html = []
         for p in posts_for_label:
@@ -527,7 +692,6 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
         
         output_path = os.path.join(OUTPUT_DIR, permalink_rel_label.lstrip('/'))
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        print(f"DEBUG: Menulis file label ke {output_path}")
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(full_label_html)
         print(f"  > Halaman Label '{label_name}' selesai: {permalink_rel_label}")
@@ -593,13 +757,12 @@ if __name__ == '__main__':
         print(f"🌟 Menerbitkan artikel berikutnya: '{post_to_publish.get('processed_title')}' (ID: {post_to_publish.get('id')})")
        
         # Lakukan pengeditan AI pada teks murni yang disiapkan untuk Gemini
-        # Ini akan mengembalikan teks murni yang sudah digabung (300 kata diedit + sisa asli)
-        edited_pure_text_from_gemini_combined = edit_first_300_words_with_gemini(
+        edited_pure_text_from_gemini = edit_first_300_words_with_gemini(
             post_to_publish['id'],
             post_to_publish['processed_title'],
-            post_to_publish['pure_text_content_for_gemini']
+            post_to_publish['pure_text_content_for_gemini'] # Kirim teks murni ke Gemini
         )
-        post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini_combined
+        post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini
 
         # 6. Hasilkan file HTML untuk postingan yang dipilih (dan update index/label pages)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -613,6 +776,7 @@ if __name__ == '__main__':
         print("\n🎉 Proses Selesai!")
         print(f"File HTML sudah ada di folder: **{OUTPUT_DIR}/**")
         print("GitHub Actions akan melakukan commit dan push file-file ini ke repositori Anda.")
+        print("\nSitus statis Anda akan diperbarui di GitHub Pages.")
 
     except Exception as e:
         print(f"❌ Terjadi kesalahan fatal: {e}")
