@@ -260,7 +260,7 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
         )
         
         prompt_template = f"""
-        Saya akan memberikan sebuah teks artikel yang mungkin sudah mengandung placeholder seperti '[sensor]'. Tugas Anda adalah menyunting 300 kata pertama dari teks ini untuk menjadikannya lebih menarik, ringkas, dan optimasi SEO, tanpa mengubah makna aslinya secara signifikan. **Sangat penting: Pertahankan semua placeholder sensor seperti '[sensor]' jika ada, dan jangan mencoba untuk memulihkan atau mengubah kata-kata di dalamnya.** Gunakan gaya bahasa dan pemilihan kata yang memikat, khas seperti Gemini AI. Fokus pada penggunaan kata-kata yang relevan untuk tema 'cerita dewasa 2025' dan gaya bahasa yang memikat seperti Anda (Gemini AI), namun tetap menjaga keaslian pesan dan tidak menciptakan informasi baru. Pastikan output Anda adalah teks murni, tanpa tag HTML atau Markdown.
+        Tugas Anda adalah menyunting (parapharse siginfikan) 300 kata pertama dari teks ini untuk menjadikannya lebih menarik, ringkas, dan optimasi SEO. Fokus pada penggunaan kata-kata yang relevan untuk tema 'cerita dewasa' dan gaya bahasa yang memikat seperti Anda (Gemini AI), namun tetap menjaga keaslian pesan dan tidak menciptakan informasi baru. Pastikan output Anda adalah teks murni, tanpa tag HTML atau Markdown.
         
         Teks artikel:
         {text_to_send}
