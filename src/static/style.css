@@ -383,16 +383,6 @@ footer a {
         font-size: 20px;
     }
 
-    .post-item {
-        flex-direction: column; /* Tumpuk thumbnail di atas konten untuk mobile */
-        align-items: center;
-        text-align: center;
-    }
-
-    .post-thumbnail {
-        margin-right: 0;
-        margin-bottom: 10px;
-    }
 
     .related-item {
         flex-direction: column;
