@@ -585,20 +585,10 @@ def build_single_post_page(post):
 
 # --- Main Logic ---
 if __name__ == "__main__":
-    # 1. Pastikan folder output bersih
-    print(f"Membersihkan folder output: {OUTPUT_DIR}/")
-    if os.path.exists(OUTPUT_DIR):
-        shutil.rmtree(OUTPUT_DIR)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # Salin logo ke folder dist
-    if os.path.exists(LOGO_PATH):
-        shutil.copy(LOGO_PATH, os.path.join(OUTPUT_DIR, "logo.png"))
-        print(f"✅ Logo '{os.path.basename(LOGO_PATH)}' disalin ke '{OUTPUT_DIR}/'.")
-    else:
-        print(f"⚠️ Peringatan: Logo tidak ditemukan di '{LOGO_PATH}'. Pastikan Anda menempatkannya di sana.")
+    # ... (kode inisialisasi dan pembersihan folder output) ...
 
     # 2. Muat atau ambil semua postingan dari Blogger API
+    # all_posts_preprocessed akan berisi semua post, termasuk yang sudah di-cache dengan edit Gemini
     if os.path.exists(ALL_BLOGGER_POSTS_CACHE_FILE):
         print(f"Memuat semua postingan dari cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
         with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -606,9 +596,10 @@ if __name__ == "__main__":
     else:
         print(f"Cache '{ALL_BLOGGER_POSTS_CACHE_FILE}' tidak ditemukan. Mengambil semua postingan dari Blogger API...")
         all_posts_preprocessed = get_all_blogger_posts_and_preprocess(API_KEY, BLOG_ID)
-        with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(all_posts_preprocessed, f, indent=4, ensure_ascii=False)
-        print(f"✅ Semua postingan disimpan ke cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
+        # Jangan simpan di sini dulu, simpan setelah ada editan Gemini
+        # with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
+        #     json.dump(all_posts_preprocessed, f, indent=4, ensure_ascii=False)
+        # print(f"✅ Semua postingan disimpan ke cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
 
     # 3. Muat state postingan yang sudah diterbitkan
     published_ids = load_published_posts_state()
@@ -625,15 +616,14 @@ if __name__ == "__main__":
 
         if post_id_str not in published_ids:
             unpublished_posts.append(post)
-            
+    
+    # Bagian ini penting: Jika tidak ada artikel baru, kita tetap perlu membangun ulang index dan label
+    # dengan data yang sudah ada di all_posts_preprocessed (termasuk hasil edit Gemini jika sudah pernah disimpan)
     if not unpublished_posts:
         print("Tidak ada artikel baru yang perlu diterbitkan hari ini.")
         if all_posts_preprocessed:
-            # Pastikan processed_title pada artikel yang sudah terbit menggunakan original_title
-            # karena mereka tidak melalui proses edit judul Gemini pada siklus ini.
-            for p in all_posts_preprocessed:
-                if str(p['id']) in published_ids:
-                    p['processed_title'] = p['original_title'] 
+            # Pastikan processed_title pada artikel yang sudah terbit menggunakan processed_title yang TERSIMPAN di cache
+            # (BUKAN original_title dari Blogger)
             all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
             build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
         
@@ -664,6 +654,19 @@ if __name__ == "__main__":
     
     post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini_300_words
 
+    # --- KRUSIAL: PERBARUI OBJEK POST DALAM all_posts_preprocessed DAN SIMPAN CACHE ---
+    # Temukan indeks post_to_publish dalam list all_posts_preprocessed
+    # (Perhatikan, ini mungkin tidak ideal jika list sangat besar, tapi cukup untuk kasus ini)
+    for i, p in enumerate(all_posts_preprocessed):
+        if p['id'] == post_to_publish['id']:
+            all_posts_preprocessed[i] = post_to_publish # Ganti objek post lama dengan yang baru (sudah diedit)
+            break
+            
+    # Simpan seluruh all_posts_preprocessed yang sudah diperbarui kembali ke file cache
+    with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(all_posts_preprocessed, f, indent=4, ensure_ascii=False)
+    print(f"✅ Cache '{ALL_BLOGGER_POSTS_CACHE_FILE}' diperbarui dengan data Gemini AI.")
+
     # 6. Hasilkan file HTML untuk postingan yang dipilih
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     build_single_post_page(post_to_publish)
@@ -673,18 +676,10 @@ if __name__ == "__main__":
     save_published_posts_state(published_ids)
     print(f"✅ State file '{PUBLISHED_LOG_FILE}' diperbarui.")
     
-    # 8. Setelah satu artikel diterbitkan dan statusnya diperbarui,
-    # bangun ulang halaman index dan label dengan SEMUA artikel yang sudah diterbitkan.
-    # Di sini kita perlu memastikan 'processed_title' untuk artikel yang sudah terbit sebelumnya
-    # kembali ke 'original_title' karena mereka tidak melalui proses edit Gemini di siklus ini.
-    all_published_posts_data = []
-    for p in all_posts_preprocessed:
-        if str(p['id']) in published_ids:
-            # Untuk artikel yang baru terbit, processed_title sudah benar (diedit Gemini)
-            # Untuk artikel yang terbit sebelumnya, kita pastikan processed_title adalah original_title
-            if p['id'] != post_to_publish['id']: 
-                p['processed_title'] = p['original_title'] # Kembalikan ke judul asli jika tidak diedit di siklus ini
-            all_published_posts_data.append(p)
+    # 8. Bangun ulang halaman index dan label dengan SEMUA artikel yang sudah diterbitkan.
+    # Sekarang, all_posts_preprocessed sudah berisi data yang diedit Gemini jika ada.
+    # Dan tidak ada lagi baris yang mengembalikan processed_title ke original_title di sini.
+    all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
     
     build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
    
