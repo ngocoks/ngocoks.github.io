@@ -150,7 +150,7 @@ def edit_first_300_words_with_gemini(post_id, post_title, pure_text_for_gemini):
    
     if len(words) < 50:
         print(f"[{post_id}] Artikel terlalu pendek (<50 kata) untuk diedit oleh Gemini AI. Melewati pengeditan.")
-        return pure_text_for_gemini # Mengembalikan teks murni asli jika tidak diedit
+        return pure_text_for_gemini
        
     first_300_words_list = words[:300]
     first_300_words_text = " ".join(first_300_words_list)
@@ -160,7 +160,8 @@ def edit_first_300_words_with_gemini(post_id, post_title, pure_text_for_gemini):
     try:
         prompt = (
             f"Cerita Berikut adalah cuplikan dari 300 kata pertama dari cerita utuhnya, Perbaiki tata bahasa, ejaan, dan tingkatkan keterbacaan paragraf berikut. "
-            f"Paraphrase signifikan setiap kata, dan buat agar lebih mengalir sehingga 300 kata pertama ini beda dari aslinya:\n\n"
+            f"Paraphrase signifikan setiap kata, dan buat agar lebih mengalir sehingga 300 kata pertama ini beda dari aslinya.\n\n"
+            f"**Tulis ulang paragraf ini SELALU dalam BAHASA INDONESIA yang baku dan alami.**\n\n" # <<< Tambahan Penting Ini
             f"{first_300_words_text}"
         )
        
@@ -169,14 +170,19 @@ def edit_first_300_words_with_gemini(post_id, post_title, pure_text_for_gemini):
        
         print(f"✅ Gemini AI selesai mengedit bagian pertama artikel ID: {post_id}.")
        
-        # Pastikan output Gemini juga dalam bentuk teks murni, tanpa HTML yang mungkin ia hasilkan
         cleaned_edited_text = extract_pure_text_from_html(edited_text_from_gemini) 
        
-        return cleaned_edited_text
+        # Kombinasikan teks yang diedit Gemini dengan sisa teks murni dari artikel asli
+        # Ini penting agar artikel tetap lengkap setelah diedit.
+        if len(words) > 300:
+            remaining_original_pure_text = " ".join(words[300:])
+            return cleaned_edited_text + "\n\n" + remaining_original_pure_text
+        else:
+            return cleaned_edited_text
        
     except Exception as e:
         print(f"❌ Error saat mengedit dengan Gemini AI untuk artikel ID: {post_id} - {e}. Menggunakan teks asli untuk bagian ini.")
-        return pure_text_for_gemini # Mengembalikan teks murni asli jika ada error
+        return pure_text_for_gemini
 
 # --- Fungsi untuk memuat dan menyimpan status postingan yang sudah diterbitkan ---
 def load_published_posts_state():
@@ -354,7 +360,8 @@ def build_header_and_sidebar(all_labels, current_blog_name):
     """Membangun bagian header dan sidebar navigasi."""
     logo_tag = ""
     if os.path.exists(LOGO_PATH):
-        logo_tag = f'<img src="{BASE_SITE_URL}/logo.png" width="80" height="40" alt="Logo Blog">'
+        # Gunakan path relatif dari root situs (OUTPUT_DIR)
+        logo_tag = f'<img src="/logo.png" width="80" height="40" alt="Logo Blog">'
 
     header_html = f"""
     <header class="header">
@@ -412,6 +419,7 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
         print(f"Peringatan: File CSS '{CUSTOM_CSS_PATH}' tidak ditemukan. Menggunakan CSS kosong.")
         custom_css_content = ""
 
+    # Salin logo ke direktori OUTPUT_DIR
     if os.path.exists(LOGO_PATH):
         shutil.copy(LOGO_PATH, os.path.join(OUTPUT_DIR, os.path.basename(LOGO_PATH)))
         print(f"Logo '{os.path.basename(LOGO_PATH)}' disalin ke '{OUTPUT_DIR}'.")
@@ -439,68 +447,25 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
     
     # Konten HTML asli yang sudah dihapus <a> dan disensor kata
     original_content_html_ready_for_pub = post.get('content_html_ready_for_pub', '')
-    # Teks murni hasil edit Gemini untuk 300 kata pertama
-    edited_pure_text_from_gemini = post.get('processed_content_with_gemini', '') # Ini sudah 300 kata edited + sisanya pure
+    # Teks murni hasil edit Gemini untuk 300 kata pertama + sisa teks asli (jika diedit)
+    edited_pure_text_combined = post.get('processed_content_with_gemini', '') 
 
-    # --- Menggabungkan Teks Edit Gemini ke dalam HTML Asli ---
-    soup = BeautifulSoup(original_content_html_ready_for_pub, 'html.parser')
-    
-    # Ambil teks murni dari HTML asli untuk mengetahui posisi 300 kata pertama
-    pure_text_from_original_html = extract_pure_text_from_html(original_content_html_ready_for_pub)
-    original_words = pure_text_from_original_html.split()
-
-    if len(original_words) >= 300:
-        # Teks murni yang sudah diedit oleh Gemini adalah 300 kata pertama + sisa teks asli.
-        # Kita perlu membagi edited_pure_text_from_gemini menjadi 300 kata diedit dan sisanya.
-        edited_first_300_words = " ".join(edited_pure_text_from_gemini.split()[:300])
-        remaining_original_pure_text = " ".join(original_words[300:])
+    final_article_content_html = ""
+    # Periksa apakah ada konten yang diedit oleh Gemini (ini akan ada jika artikel >= 50 kata)
+    if edited_pure_text_combined and post_to_publish.get('pure_text_content_for_gemini') and \
+       len(post_to_publish['pure_text_content_for_gemini'].split()) >= 50:
         
-        # Sekarang kita akan mengganti teks di dalam HTML asli
-        # Ini adalah bagian yang paling kompleks: menemukan 300 kata pertama dalam struktur HTML
-        # dan menggantinya tanpa merusak tag.
-        
-        # Pendekatan yang lebih aman: kita akan mengambil seluruh teks dari HTML asli,
-        # lalu menggabungkan bagian awal yang diedit dengan sisa teks asli.
-        # Kemudian kita akan membungkusnya dalam tag <p> dan menyisipkan kembali ke dalam struktur.
-        # Ini berarti kita akan kehilangan struktur HTML asli (bold, italic, dll.) di 300 kata pertama.
-        # Jika itu tidak diinginkan, maka kita perlu pendekatan yang jauh lebih canggih (DOM manipulation yang presisi).
-
-        # Asumsi untuk saat ini: kita akan mengganti seluruh konten artikel dengan kombinasi
-        # 300 kata yang diedit Gemini (dibungkus <p>) + sisa HTML asli (tanpa 300 kata pertama teksnya).
-        # Ini adalah tradeoff. Cara paling mudah untuk mempertahankan HTML asli adalah
-        # Gemini mengedit HTML langsung, tapi itu tidak disarankan.
-        
-        # Alternatif: Gemini hanya mengedit teks, dan kita memasukkan teks itu ke dalam <p>
-        # dan menggantikan *bagian teks* yang relevan di HTML asli.
-        # Ini akan dilakukan dengan membersihkan seluruh teks dari HTML asli,
-        # menyisipkan teks yang diedit, lalu membungkusnya dalam <p>
-        
-        # Karena permintaan sebelumnya adalah "saat artikel benar benar di publikasikan barulah tag itu muncul lagi",
-        # dan "Logika pengeditan 300 kata pertama oleh Gemini AI cukup text aja jangan ada tag apa apa",
-        # ini menyiratkan bahwa output Gemini (teks murni) akan menggantikan teks murni di bagian awal.
-        # Jika HTML asli (bold, italic, dll) di 300 kata pertama tetap harus ada, itu memerlukan logika yang jauh lebih rumit.
-        # Untuk kasus ini, saya akan mengganti bagian teks dari HTML yang sudah diproses
-        # dengan teks hasil editan Gemini, dan kemudian membungkusnya kembali dengan <p> jika perlu.
-
-        # Mengambil teks asli lagi, membagi 300 kata pertama.
-        # Kemudian mengganti teks tersebut dengan hasil editan Gemini.
-        
-        # Ini adalah pendekatan yang paling mendekati keinginan Anda tanpa kompleksitas DOM manipulation tingkat tinggi:
-        # Kita akan mengambil HTML asli yang sudah dibersihkan (no <a>, words replaced).
-        # Lalu kita akan mengubahnya menjadi teks murni.
-        # Gabungkan teks murni yang sudah diedit Gemini dengan sisa teks murni asli.
-        # Kemudian, ubah kembali teks murni ini menjadi HTML dengan paragraf (<p>).
-        # Ini akan menghilangkan semua tag HTML dari *seluruh* artikel, tetapi menjamin Gemini
-        # hanya bekerja dengan teks dan teks yang diedit muncul.
-
-        # Menggunakan edited_pure_text_from_gemini sebagai konten final:
-        final_article_content_html = ""
-        for paragraph in edited_pure_text_from_gemini.split('\n\n'):
+        # Karena edited_pure_text_combined sudah berisi 300 kata diedit + sisa teks asli
+        # kita hanya perlu mengubahnya kembali menjadi paragraf HTML.
+        # Ini akan menghilangkan formatting HTML asli (bold, italic, dll) tapi menjaga teks dan urutan.
+        for paragraph in edited_pure_text_combined.split('\n\n'):
             if paragraph.strip():
+                # Ganti newline tunggal di dalam paragraf dengan <br> untuk mempertahankan baris baru
                 formatted_paragraph = paragraph.replace('\n', '<br>')
                 final_article_content_html += f"<p>{formatted_paragraph}</p>\n"
     else:
-        # Jika artikel terlalu pendek untuk diedit, gunakan saja content_html_ready_for_pub
+        # Jika tidak ada pengeditan Gemini (misal, karena terlalu pendek), 
+        # gunakan konten HTML asli yang sudah diproses dan disensor.
         final_article_content_html = original_content_html_ready_for_pub
 
     main_image_url = get_post_image_url(post)
@@ -562,7 +527,7 @@ def build_site_for_single_post(post_to_publish, all_labels_across_all_posts):
         "name": "{escaped_blog_name}",
         "logo": {{
           "@type": "ImageObject",
-          "url": "{BASE_SITE_URL}/logo.png"
+          "url": "/logo.png"
         }}
       }},
       "description": "{escaped_description}"
@@ -790,12 +755,13 @@ if __name__ == '__main__':
         print(f"🌟 Menerbitkan artikel berikutnya: '{post_to_publish.get('processed_title')}' (ID: {post_to_publish.get('id')})")
        
         # Lakukan pengeditan AI pada teks murni yang disiapkan untuk Gemini
-        edited_pure_text_from_gemini = edit_first_300_words_with_gemini(
+        # Ini akan mengembalikan teks murni yang sudah digabung (300 kata diedit + sisa asli)
+        edited_pure_text_from_gemini_combined = edit_first_300_words_with_gemini(
             post_to_publish['id'],
             post_to_publish['processed_title'],
             post_to_publish['pure_text_content_for_gemini'] # Kirim teks murni ke Gemini
         )
-        post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini
+        post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini_combined
 
         # 6. Hasilkan file HTML untuk postingan yang dipilih (dan update index/label pages)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
