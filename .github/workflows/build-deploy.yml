@@ -27,22 +27,21 @@ jobs:
         with:
           python-version: '3.x'
 
-      # --- LANKAH BARU: Set variabel lingkungan untuk tanggal ---
-      # Langkah ini akan membuat variabel lingkungan 'TODAY' dengan format YYYY-MM-DD
+      # Langkah untuk mengatur variabel lingkungan tanggal (sudah kita perbaiki sebelumnya)
       - name: Set date for cache key
         id: date
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
 
-      # --- Langkah Caching untuk file state/cache ---
+      # --- PERBAIKAN PENTING: Perbarui path cache ke folder 'dist' ---
       - name: Cache Blogger State and Cache Files
         id: cache-blogger-data
         uses: actions/cache@v4
         with:
+          # Mengatur path cache ke folder 'dist'
           path: |
-            published_posts.json
-            all_blogger_posts_cache.json
-          # Gunakan variabel lingkungan 'TODAY' yang baru dibuat
-          # Ini akan membuat kunci cache unik untuk setiap hari
+            dist/published_posts.json
+            dist/all_blogger_posts_cache.json
+          # Menggunakan kunci berdasarkan tanggal untuk memastikan persistensi antar run
           key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
