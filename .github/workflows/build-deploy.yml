@@ -7,14 +7,13 @@ on:
   workflow_dispatch: # Mengizinkan eksekusi manual dari UI GitHub
   schedule:
     # Setiap hari pada pukul 00:00 UTC (jam 7 pagi WIB)
-    # Sesuaikan '0 0 * * *' dengan waktu yang Anda inginkan
-    - cron: '0 0 * * *' # Contoh: '0 0 * * *' untuk setiap hari pukul 00:00 UTC
+    - cron: '0 0 * * *'
 
 # Berikan izin yang diperlukan untuk GITHUB_TOKEN
 permissions:
-  contents: write    # Diperlukan untuk push file cache/log jika diubah
-  pages: write       # Untuk mendeploy ke GitHub Pages
-  id-token: write    # Untuk OIDC (diperlukan oleh actions/deploy-pages)
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -28,8 +27,13 @@ jobs:
         with:
           python-version: '3.x'
 
+      # --- LANKAH BARU: Set variabel lingkungan untuk tanggal ---
+      # Langkah ini akan membuat variabel lingkungan 'TODAY' dengan format YYYY-MM-DD
+      - name: Set date for cache key
+        id: date
+        run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
+
       # --- Langkah Caching untuk file state/cache ---
-      # Cache untuk published_posts.json dan all_blogger_posts_cache.json
       - name: Cache Blogger State and Cache Files
         id: cache-blogger-data
         uses: actions/cache@v4
@@ -37,27 +41,22 @@ jobs:
           path: |
             published_posts.json
             all_blogger_posts_cache.json
-          # Kunci ini akan memastikan cache lebih persisten.
-          # Ia akan menggunakan kombinasi OS, referensi git (branch), dan tanggal.
-          # Ini membantu memulihkan cache meskipun ada commit baru, asalkan tanggalnya sama.
-          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ format('{0:yyyy-MM-dd}', github.event.repository.pushed_at || github.event.repository.updated_at) }}
-          # restore-keys mencoba memulihkan cache jika kunci utama tidak ditemukan.
-          # Ini penting untuk skenario ketika tanggal berubah atau push baru dilakukan.
+          # Gunakan variabel lingkungan 'TODAY' yang baru dibuat
+          # Ini akan membuat kunci cache unik untuk setiap hari
+          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}
           restore-keys: |
-            ${{ runner.os }}-blogger-data-${{ github.ref }}- # Coba pulihkan dari kunci branch terakhir
-            ${{ runner.os }}-blogger-data- # Coba pulihkan dari kunci paling umum
+            ${{ runner.os }}-blogger-data-${{ github.ref }}-
+            ${{ runner.os }}-blogger-data-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt # Pastikan requirements.txt ada di root repo
+          pip install -r requirements.txt
 
       - name: Create dist directory
         run: mkdir -p dist
 
-      - name: Copy static assets (e.g., logo.png)
-        # Gunakan `cp -n` untuk menghindari menimpa jika file sudah ada (tidak penting jika dist selalu dibersihkan)
-        # Atau sesuaikan jika Anda punya lebih banyak aset statis
+      - name: Copy static assets
         run: cp src/static/logo.png dist/ || true
 
       - name: Run content build script
@@ -65,23 +64,20 @@ jobs:
           BLOGGER_API_KEY: ${{ secrets.BLOGGER_API_KEY }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        # Pastikan build.py Anda telah dimodifikasi sesuai saran saya sebelumnya
-        # untuk menyimpan hasil edit Gemini ke all_blogger_posts_cache.json
-        # dan memperbarui published_posts.json
         run: python src/build.py
 
       - name: Upload artifact for GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist' # Pastikan folder output adalah './dist'
+          path: './dist'
 
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build # Pastikan job deploy menunggu job build selesai
+    needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4 # Gunakan versi terbaru
+        uses: actions/deploy-pages@v4
