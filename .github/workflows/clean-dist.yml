@@ -1,0 +1,33 @@
+name: Clean Dist Directory Manually
+
+on:
+  workflow_dispatch: # Hanya bisa dipicu secara manual
+
+permissions:
+  contents: write # Perlu izin tulis untuk menghapus file
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete dist folder content
+        run: |
+          if [ -d "dist" ]; then
+            rm -rf dist/*
+            echo "Successfully cleaned dist directory content."
+          else
+            echo "dist directory does not exist, nothing to clean."
+          fi
+          rm -f published_posts.json || true
+          rm -f all_blogger_posts_cache.json || true
+
+      - name: Commit changes (if files were deleted)
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Cleaned dist folder and reset publication log" || echo "No changes to commit."
+          git push
