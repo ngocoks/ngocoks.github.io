@@ -12,9 +12,9 @@ on:
 
 # Berikan izin yang diperlukan untuk GITHUB_TOKEN
 permissions:
-  contents: read # Untuk checkout kode
-  pages: write    # Untuk mendeploy ke GitHub Pages
-  id-token: write # Untuk OIDC (diperlukan oleh actions/deploy-pages)
+  contents: write   # Diperlukan untuk push file cache/log jika diubah
+  pages: write      # Untuk mendeploy ke GitHub Pages
+  id-token: write   # Untuk OIDC (diperlukan oleh actions/deploy-pages)
 
 jobs:
   build:
@@ -28,10 +28,24 @@ jobs:
         with:
           python-version: '3.x'
 
+      # --- Langkah Caching untuk file state/cache ---
+      # Cache untuk published_posts.json dan all_blogger_posts_cache.json
+      - name: Cache Blogger State and Cache Files
+        id: cache-blogger-data
+        uses: actions/cache@v4
+        with:
+          path: |
+            published_posts.json
+            all_blogger_posts_cache.json
+          key: ${{ runner.os }}-blogger-data-${{ github.sha }} # Kunci unik berdasarkan OS dan SHA commit
+          restore-keys: |
+            ${{ runner.os }}-blogger-data- # Untuk mengembalikan cache terakhir jika SHA berubah
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt # Pastikan requirements.txt ada di root repo
+
       - name: Create dist directory
         run: mkdir -p dist
 
