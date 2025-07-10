@@ -28,39 +28,48 @@ PUBLISHED_LOG_FILE = "published_posts.json" # Log ID post yang sudah dipublikasi
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- Daftar Kata yang Akan Diganti/Disensor ---
-# (Pastikan ini sesuai dengan preferensi Anda)
+# --- Daftar Kata yang Akan Diganti/Disensor (dari build.py asli Anda) ---
 REPLACEMENTS = {
-    "kontol": "[sensor]",
-    "memek": "[sensor]",
-    "ngentot": "[sensor]",
-    "jembut": "[sensor]",
-    "titit": "[sensor]",
-    "peler": "[sensor]",
-    "coli": "[sensor]",
-    "crot": "[sensor]",
-    "kimak": "[sensor]",
-    "ngocok": "[sensor]",
-    "penis": "[sensor]",
-    "vagina": "[sensor]",
-    "seks": "[sensor]",
-    "fuck": "[sensor]",
-    "bitch": "[sensor]",
-    "asshole": "[sensor]",
-    "masturbasi": "[sensor]",
-    "croott": "[sensor]"
-    # Tambahkan kata lain yang ingin disensor di sini
+    "kontol": "rudal",
+    "memek": "serambi lempit",
+    "ngentot": "menyetubuhi",
+    "jembut": "bulu halus",
+    "vagina": "serambi lempit",
+    "penis": "rudal",
+    "seks": "bercinta",
+    "sex": "bercinta",
+    
+    # Tambahkan kata lain yang ingin disensor di sini sesuai build.py Anda
 }
 
 # --- Fungsi Utility ---
 def extract_pure_text_from_html(html_content):
+    """
+    Ekstrak teks murni dari konten HTML, menghapus tag script dan style.
+    Ini digunakan untuk mendapatkan teks asli (belum disensor) untuk pra-pemrosesan.
+    """
     soup = BeautifulSoup(html_content, 'html.parser')
     for script_or_style in soup(["script", "style"]):
         script_or_style.extract() # Hapus semua tag script dan style
     text = soup.get_text(separator=' ', strip=True)
     return text
 
+def apply_replacements_to_pure_text(text_content):
+    """
+    Menerapkan penggantian kata (sensor) pada teks murni.
+    Ini digunakan untuk teks yang akan dikirim ke Gemini dan untuk konten artikel final.
+    """
+    modified_text = text_content
+    for old, new in REPLACEMENTS.items():
+        # Gunakan regex untuk pencarian case-insensitive dan whole word
+        modified_text = re.sub(r'\b' + re.escape(old) + r'\b', new, modified_text, flags=re.IGNORECASE)
+    return modified_text
+
 def remove_anchor_tags_and_apply_replacements_to_html(html_content):
+    """
+    Menghilangkan semua tag <a> dan menerapkan penggantian kata (sensor) pada teks dalam HTML.
+    Ini digunakan untuk konten HTML yang siap dipublikasikan (setelah disensor).
+    """
     soup = BeautifulSoup(html_content, 'html.parser')
     
     # Hapus semua tag <a>
@@ -73,15 +82,17 @@ def remove_anchor_tags_and_apply_replacements_to_html(html_content):
             original_text = str(element)
             modified_text = original_text
             for old, new in REPLACEMENTS.items():
-                # Gunakan regex untuk pencarian case-insensitive dan whole word
                 modified_text = re.sub(r'\b' + re.escape(old) + r'\b', new, modified_text, flags=re.IGNORECASE)
             
             if modified_text != original_text:
                 element.replace_with(modified_text)
                 
-    return str(soup)
+    return str(soup) # Kembalikan HTML sebagai string
 
 def load_custom_css():
+    """
+    Memuat konten CSS kustom dari file.
+    """
     if os.path.exists(CUSTOM_CSS_PATH):
         with open(CUSTOM_CSS_PATH, 'r', encoding='utf-8') as f:
             return f.read()
@@ -89,27 +100,33 @@ def load_custom_css():
     return ""
 
 def get_post_image_url(post):
-    # Mencari gambar di dalam konten
+    """
+    Mencari URL gambar thumbnail dari postingan.
+    """
     content = post.get('content', '')
     soup = BeautifulSoup(content, 'html.parser')
     img_tag = soup.find('img')
     if img_tag and img_tag.has_attr('src'):
         return img_tag['src']
     
-    # Jika tidak ada gambar di konten, coba cek thumbnail (jika ada di data API)
     if post.get('images'):
         for img in post['images']:
             if img.get('url'):
                 return img['url']
                 
-    return None # Tidak ada gambar ditemukan
+    return None
 
 def sanitize_filename(title):
-    # Mengganti karakter tidak valid dengan underscore dan membatasi panjang
+    """
+    Membersihkan judul untuk digunakan sebagai nama file yang aman.
+    """
     filename = re.sub(r'[^\w\-]', '_', slugify(title))
-    return filename[:100] # Batasi panjang filename
+    return filename[:100]
 
 def load_published_posts_state():
+    """
+    Memuat ID postingan yang sudah diterbitkan dari file state.
+    """
     if os.path.exists(PUBLISHED_LOG_FILE):
         with open(PUBLISHED_LOG_FILE, 'r', encoding='utf-8') as f:
             try:
@@ -120,53 +137,22 @@ def load_published_posts_state():
     return set()
 
 def save_published_posts_state(published_ids):
+    """
+    Menyimpan ID postingan yang sudah diterbitkan ke file state.
+    """
     with open(PUBLISHED_LOG_FILE, 'w', encoding='utf-8') as f:
         json.dump(list(published_ids), f, indent=4, ensure_ascii=False)
 
-def get_all_blogger_posts_and_preprocess(api_key, blog_id):
-    all_posts = []
-    next_page_token = None
-    
-    while True:
-        url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?key={api_key}&fetchBodies=true"
-        if next_page_token:
-            url += f"&pageToken={next_page_token}"
-            
-        print(f"Mengambil postingan dari Blogger API... {'(lanjutan)' if next_page_token else ''}")
-        response = requests.get(url)
-        response.raise_for_status() # Akan menimbulkan error untuk status kode HTTP yang buruk
-        data = response.json()
-        
-        posts = data.get('items', [])
-        for post in posts:
-            # Tambahkan processed_title dan pure_text_content_for_gemini
-            post['processed_title'] = post.get('title', 'Untitled Post')
-            post['pure_text_content_for_gemini'] = extract_pure_text_from_html(post.get('content', ''))
-            post['content_html_ready_for_pub'] = remove_anchor_tags_and_apply_replacements_to_html(post.get('content', ''))
-            all_posts.append(post)
-            
-        next_page_token = data.get('nextPageToken')
-        if not next_page_token:
-            break
-            
-    print(f"✅ Berhasil mengambil {len(all_posts)} postingan dari Blogger API.")
-    return all_posts
+# --- Fungsi Edit Judul dengan Gemini AI ---
+def edit_title_with_gemini(post_id, original_title):
+    """
+    Mengirim judul artikel ke Gemini AI untuk diedit agar lebih menarik dan SEO-friendly.
+    """
+    if not original_title or len(original_title.strip()) < 5:
+        print(f"Judul postingan ID {post_id} terlalu pendek atau kosong untuk diedit Gemini. Melewatkan.")
+        return original_title
 
-# --- Fungsi Inti: Interaksi dengan Gemini AI ---
-def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
-    if not isinstance(pure_text_to_edit, str):
-        print(f"Error: pure_text_to_edit bukan string untuk post ID {post_id}.")
-        return ""
-
-    words = pure_text_to_edit.split()
-    
-    if len(words) < 50:
-        print(f"Postingan ID {post_id} terlalu pendek ({len(words)} kata) untuk diedit Gemini. Melewatkan.")
-        return "" 
-
-    text_to_send = " ".join(words[:300])
-
-    print(f"Mengirim 300 kata pertama dari artikel '{title}' (ID: {post_id}) ke Gemini AI untuk diedit...")
+    print(f"Mengirim judul '{original_title}' (ID: {post_id}) ke Gemini AI untuk diedit...")
 
     try:
         model = genai.GenerativeModel(
@@ -181,7 +167,104 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
         )
         
         prompt_template = f"""
-        Saya akan memberikan sebuah teks artikel. Tugas Anda adalah menyunting 300 kata pertama dari teks ini untuk menjadikannya lebih menarik, ringkas, dan optimasi SEO, tanpa mengubah makna aslinya secara signifikan. Fokus pada penggunaan kata-kata yang relevan untuk tema 'cerita dewasa 2025' dan gaya bahasa yang memikat seperti Anda (Gemini AI), namun tetap menjaga keaslian pesan dan tidak menciptakan informasi baru. Pastikan output Anda adalah teks murni, tanpa tag HTML atau Markdown.
+        Saya memiliki sebuah judul artikel: "{original_title}".
+        Tugas Anda adalah mengedit judul ini agar lebih menarik, menggugah rasa ingin tahu, relevan dengan tema 'cerita dewasa 2025', dan SEO-friendly.
+        Pertahankan esensi judul aslinya, namun buatlah lebih memikat dan optimalkan untuk pencarian.
+        Gunakan gaya bahasa dan pemilihan kata yang canggih dan memikat, khas seperti Gemini AI.
+        Berikan HANYA judul yang sudah diedit sebagai respons Anda, tanpa teks tambahan atau tanda kutip.
+        """
+        
+        response = model.generate_content(prompt_template)
+        edited_title = response.text.strip()
+        
+        if edited_title.startswith('"') and edited_title.endswith('"'):
+            edited_title = edited_title[1:-1]
+        
+        print(f"✅ Gemini AI selesai mengedit judul untuk '{original_title}' menjadi: '{edited_title}'.")
+        return edited_title
+
+    except Exception as e:
+        print(f"⚠️ Gagal mengedit judul artikel '{original_title}' (ID: {post_id}) dengan Gemini AI: {e}")
+        return original_title
+
+def get_all_blogger_posts_and_preprocess(api_key, blog_id):
+    """
+    Mengambil semua postingan dari Blogger API dan melakukan pra-pemrosesan.
+    Termasuk pengeditan judul dan penyensoran teks SEBELUM dikirim ke Gemini.
+    """
+    all_posts = []
+    next_page_token = None
+    
+    while True:
+        url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?key={api_key}&fetchBodies=true"
+        if next_page_token:
+            url += f"&pageToken={next_page_token}"
+            
+        print(f"Mengambil postingan dari Blogger API... {'(lanjutan)' if next_page_token else ''}")
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        posts = data.get('items', [])
+        for post in posts:
+            original_title = post.get('title', 'Untitled Post')
+            
+            # --- Edit Judul dengan Gemini AI ---
+            edited_title = edit_title_with_gemini(post['id'], original_title)
+            post['processed_title'] = edited_title
+            post['original_title'] = original_title
+            
+            # pure_text_content_for_gemini: Teks murni ASLI (tanpa sensor)
+            original_pure_text = extract_pure_text_from_html(post.get('content', ''))
+            post['pure_text_content_for_gemini'] = original_pure_text
+
+            # filtered_pure_text_for_gemini_input: Teks murni yang SUDAH DISENSOR, untuk DIKIRIM ke Gemini AI
+            post['filtered_pure_text_for_gemini_input'] = apply_replacements_to_pure_text(original_pure_text)
+
+            # content_html_ready_for_pub: HTML asli yang sudah disensor dan tanpa link (fallback jika Gemini tidak mengedit)
+            post['content_html_ready_for_pub'] = remove_anchor_tags_and_apply_replacements_to_html(post.get('content', ''))
+            all_posts.append(post)
+            
+        next_page_token = data.get('nextPageToken')
+        if not next_page_token:
+            break
+            
+    print(f"✅ Berhasil mengambil {len(all_posts)} postingan dari Blogger API.")
+    return all_posts
+
+# --- Fungsi Inti: Interaksi dengan Gemini AI untuk Konten ---
+def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
+    """
+    Mengirim 300 kata pertama dari teks murni (yang sudah disensor) ke Gemini AI untuk diedit.
+    """
+    if not isinstance(pure_text_to_edit, str):
+        print(f"Error: pure_text_to_edit bukan string untuk post ID {post_id}.")
+        return ""
+
+    words = pure_text_to_edit.split()
+    
+    if len(words) < 50:
+        print(f"Postingan ID {post_id} terlalu pendek ({len(words)} kata) untuk diedit Gemini. Melewatkan.")
+        return "" 
+
+    text_to_send = " ".join(words[:300])
+
+    print(f"Mengirim 300 kata pertama dari artikel '{title}' (ID: {post_id}) ke Gemini AI untuk diedit (input sudah disensor)...")
+
+    try:
+        model = genai.GenerativeModel(
+            model_name='gemini-pro',
+            generation_config={"temperature": 0.7, "top_p": 0.9, "top_k": 40},
+            safety_settings=[
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
+        )
+        
+        prompt_template = f"""
+        Saya akan memberikan sebuah teks artikel yang mungkin sudah mengandung placeholder seperti '[sensor]'. Tugas Anda adalah menyunting 300 kata pertama dari teks ini untuk menjadikannya lebih menarik, ringkas, dan optimasi SEO, tanpa mengubah makna aslinya secara signifikan. **Sangat penting: Pertahankan semua placeholder sensor seperti '[sensor]' jika ada, dan jangan mencoba untuk memulihkan atau mengubah kata-kata di dalamnya.** Gunakan gaya bahasa dan pemilihan kata yang memikat, khas seperti Gemini AI. Fokus pada penggunaan kata-kata yang relevan untuk tema 'cerita dewasa 2025' dan gaya bahasa yang memikat seperti Anda (Gemini AI), namun tetap menjaga keaslian pesan dan tidak menciptakan informasi baru. Pastikan output Anda adalah teks murni, tanpa tag HTML atau Markdown.
         
         Teks artikel:
         {text_to_send}
@@ -190,6 +273,7 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
         response = model.generate_content(prompt_template)
         
         edited_text_from_gemini = response.text
+        # Pastikan output Gemini bersih dari tag yang tidak disengaja
         cleaned_edited_text = extract_pure_text_from_html(edited_text_from_gemini) 
 
         print(f"✅ Gemini AI selesai mengedit 300 kata pertama untuk '{title}'.")
@@ -199,11 +283,10 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
         print(f"⚠️ Gagal mengedit artikel '{title}' (ID: {post_id}) dengan Gemini AI: {e}")
         return ""
 
-# --- Fungsi untuk Membangun Halaman Index dan Label (BARU/Diperbaiki) ---
+# --- Fungsi untuk Membangun Halaman Index dan Label ---
 def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list):
     print("Membangun ulang halaman index dan label untuk SEMUA artikel yang diterbitkan...")
 
-    # Urutkan postingan berdasarkan tanggal published terbaru
     all_published_posts_data.sort(key=lambda x: datetime.fromisoformat(x['published'].replace('Z', '+00:00')), reverse=True)
 
     # --- Render Halaman Index ---
@@ -213,10 +296,16 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
         permalink_rel = f"/{post_slug}-{post['id']}.html"
         
         snippet_for_index = post.get('description_snippet', '')
-        # Jika description_snippet tidak ada, ambil 50 kata pertama dari teks murni
-        if not snippet_for_index and post.get('pure_text_content_for_gemini'):
-            snippet_for_index = " ".join(post['pure_text_content_for_gemini'].split()[:50]) + "..."
-        
+        if not snippet_for_index:
+            # Jika processed_content_with_gemini ada, itu sudah disensor dari input Gemini
+            if post.get('processed_content_with_gemini'):
+                snippet_for_index = " ".join(post['processed_content_with_gemini'].split()[:50]) + "..."
+            # Jika tidak, gunakan filtered_pure_text_for_gemini_input (sudah disensor)
+            elif post.get('filtered_pure_text_for_gemini_input'):
+                snippet_for_index = " ".join(post['filtered_pure_text_for_gemini_input'].split()[:50]) + "..."
+            else:
+                snippet_for_index = post.get('processed_title', 'Baca lebih lanjut...')
+
         thumbnail_url = get_post_image_url(post)
         thumbnail_tag = ""
         if thumbnail_url:
@@ -303,7 +392,6 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
         permalink_abs_label = f"{BASE_SITE_URL}{permalink_rel_label}"
         
         posts_for_this_label = [p for p in all_published_posts_data if label_name in p.get('labels', [])]
-        # Urutkan berdasarkan tanggal published terbaru
         posts_for_this_label.sort(key=lambda x: datetime.fromisoformat(x['published'].replace('Z', '+00:00')), reverse=True)
 
         list_items_html_label = []
@@ -312,8 +400,13 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
             permalink_rel = f"/{post_slug}-{post['id']}.html"
 
             snippet_for_label = post.get('description_snippet', '')
-            if not snippet_for_label and post.get('pure_text_content_for_gemini'):
-                snippet_for_label = " ".join(post['pure_text_content_for_gemini'].split()[:50]) + "..."
+            if not snippet_for_label:
+                if post.get('processed_content_with_gemini'):
+                    snippet_for_label = " ".join(post['processed_content_with_gemini'].split()[:50]) + "..."
+                elif post.get('filtered_pure_text_for_gemini_input'):
+                    snippet_for_label = " ".join(post['filtered_pure_text_for_gemini_input'].split()[:50]) + "..."
+                else:
+                    snippet_for_label = post.get('processed_title', 'Baca lebih lanjut...')
             
             thumbnail_url = get_post_image_url(post)
             thumbnail_tag = ""
@@ -391,6 +484,9 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
 
 # --- Fungsi untuk Membangun Halaman Postingan Individual ---
 def build_single_post_page(post):
+    """
+    Membangun file HTML untuk satu postingan individual.
+    """
     post_slug = sanitize_filename(post['processed_title'])
     output_filename = f"{post_slug}-{post['id']}.html"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
@@ -399,29 +495,45 @@ def build_single_post_page(post):
     permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
     
     edited_first_300_words_pure_text = post.get('processed_content_with_gemini', '')
-    full_original_pure_text = post.get('pure_text_content_for_gemini', '')
+    
+    # Ambil sisa teks artikel dari pure_text_content_for_gemini dan SENSOR sisanya
+    full_original_pure_text = post.get('pure_text_content_for_gemini', '') 
     
     final_pure_text_for_article = ""
 
     if edited_first_300_words_pure_text:
-        print("Menggabungkan 300 kata hasil editan Gemini dengan sisa artikel asli.")
+        print(f"Menggabungkan 300 kata hasil editan Gemini dengan sisa artikel asli (dan menyensornya) untuk '{post['processed_title']}'.")
         original_words_list = full_original_pure_text.split()
         
         if len(original_words_list) >= 300:
+            # Ambil sisa artikel ASLI (belum disensor) setelah 300 kata pertama
             remaining_original_pure_text = " ".join(original_words_list[300:])
-            final_pure_text_for_article = edited_first_300_words_pure_text + "\n\n" + remaining_original_pure_text
+            # SENSOR sisa artikel asli ini
+            remaining_original_pure_text_filtered = apply_replacements_to_pure_text(remaining_original_pure_text)
+            
+            # Gabungkan hasil editan Gemini (sudah disensor) dengan sisa artikel yang baru disensor
+            final_pure_text_for_article = edited_first_300_words_pure_text + "\n\n" + remaining_original_pure_text_filtered
         else:
-            final_pure_text_for_article = edited_first_300_words_pure_text if edited_first_300_words_pure_text else full_original_pure_text
-            print("Artikel kurang dari 300 kata, menggunakan hasil editan Gemini (jika ada) atau teks asli.")
+            # Jika artikel asli < 300 kata, maka hasil editan Gemini mungkin sudah mencakup seluruh artikel
+            # atau sebagian besar. Gunakan hasil Gemini (yang sudah disensor) atau teks asli yang disensor.
+            final_pure_text_for_article = edited_first_300_words_pure_text if edited_first_300_words_pure_text else apply_replacements_to_pure_text(full_original_pure_text)
+            print(f"Artikel '{post['processed_title']}' kurang dari 300 kata, menggunakan hasil editan Gemini (jika ada) atau teks asli yang disensor.")
     else:
-        print("Gemini AI tidak mengedit. Menggunakan teks murni asli artikel.")
-        final_pure_text_for_article = full_original_pure_text
+        # Jika Gemini tidak mengedit, gunakan seluruh teks asli yang sudah disensor dari `filtered_pure_text_for_gemini_input`
+        print(f"Gemini AI tidak mengedit artikel '{post['processed_title']}'. Menggunakan teks murni asli artikel yang sudah disensor.")
+        final_pure_text_for_article = post.get('filtered_pure_text_for_gemini_input', full_original_pure_text)
 
-    final_article_content_html = ""
+    # Ubah teks murni final (yang sudah disensor) menjadi HTML dasar
+    temp_html_from_pure_text = ""
     for paragraph in final_pure_text_for_article.split('\n\n'):
         if paragraph.strip():
-            formatted_paragraph = paragraph.replace('\n', '<br>') 
-            final_article_content_html += f"<p>{formatted_paragraph}</p>\n"
+            formatted_paragraph = paragraph.replace('\n', '<br>')
+            temp_html_from_pure_text += f"<p>{formatted_paragraph}</p>\n"
+            
+    # Akhirnya, jalankan remove_anchor_tags_and_apply_replacements_to_html untuk memastikan
+    # semua tag anchor dihapus dan sebagai safeguard untuk sensor terakhir.
+    final_article_content_html = remove_anchor_tags_and_apply_replacements_to_html(temp_html_from_pure_text)
+
 
     print(f"Membangun artikel individual: {output_filename}")
     article_html = f"""
@@ -511,27 +623,21 @@ if __name__ == "__main__":
     # 3. Muat state postingan yang sudah diterbitkan
     published_ids = load_published_posts_state()
 
-    # 4. Filter postingan yang belum diterbitkan dan siapkan untuk Gemini
+    # 4. Filter postingan yang belum diterbitkan dan kumpulkan semua label unik
     unpublished_posts = []
     all_unique_labels_across_all_posts = set()
 
     for post in all_posts_preprocessed:
         post_id_str = str(post['id'])
-        # Kumpulkan semua label unik dari semua postingan (termasuk yang sudah diterbitkan dan belum)
         if post.get('labels'):
             for label in post['labels']:
                 all_unique_labels_across_all_posts.add(label)
 
         if post_id_str not in published_ids:
-            # Pastikan post['pure_text_content_for_gemini'] dan post['content_html_ready_for_pub']
-            # sudah ada di sini, ini seharusnya sudah dibuat di get_all_blogger_posts_and_preprocess.
-            # Jika ada kemungkinan data tidak lengkap, bisa tambahkan fallback di sini.
             unpublished_posts.append(post)
             
     if not unpublished_posts:
         print("Tidak ada artikel baru yang perlu diterbitkan hari ini.")
-        # Jika tidak ada artikel baru, kita tetap perlu membangun ulang index/label
-        # untuk memastikan semua artikel yang sudah ada tampil.
         if all_posts_preprocessed:
             all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
             build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
@@ -540,27 +646,25 @@ if __name__ == "__main__":
         print(f"File HTML sudah ada di folder: **{OUTPUT_DIR}/**")
         exit()
 
-    # Urutkan postingan yang belum diterbitkan berdasarkan tanggal publish (terbaru lebih dulu)
     unpublished_posts.sort(key=lambda x: datetime.fromisoformat(x['published'].replace('Z', '+00:00')), reverse=True)
 
-    # 5. Pilih satu postingan untuk diterbitkan hari ini (yang paling baru dari yang belum diterbitkan)
+    # 5. Pilih satu postingan untuk diterbitkan hari ini
     post_to_publish = unpublished_posts[0]
    
     print(f"🌟 Menerbitkan artikel berikutnya: '{post_to_publish.get('processed_title')}' (ID: {post_to_publish.get('id')})\n")
    
-    # Lakukan pengeditan AI pada teks murni yang disiapkan untuk Gemini
+    # Lakukan pengeditan AI pada teks murni yang SUDAH DISENSOR yang disiapkan untuk Gemini (hanya 300 kata pertama)
     edited_pure_text_from_gemini_300_words = edit_first_300_words_with_gemini(
         post_to_publish['id'],
         post_to_publish['processed_title'],
-        post_to_publish['pure_text_content_for_gemini']
+        post_to_publish['filtered_pure_text_for_gemini_input'] # Kirim teks yang sudah disensor ke Gemini
     )
     
-    # Simpan hasil editan Gemini (HANYA 300 KATA) ke dalam post_to_publish
     post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini_300_words
 
-    # 6. Hasilkan file HTML untuk postingan yang dipilih (individual)
+    # 6. Hasilkan file HTML untuk postingan yang dipilih
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    build_single_post_page(post_to_publish) # Membuat file HTML untuk artikel individu ini
+    build_single_post_page(post_to_publish)
 
     # 7. Tambahkan ID postingan ke daftar yang sudah diterbitkan dan simpan state
     published_ids.add(str(post_to_publish['id']))
@@ -569,18 +673,8 @@ if __name__ == "__main__":
     
     # 8. Setelah satu artikel diterbitkan dan statusnya diperbarui,
     # bangun ulang halaman index dan label dengan SEMUA artikel yang sudah diterbitkan.
-    # Muat ulang all_posts_preprocessed jika ada perubahan signifikan yang perlu dipantau,
-    # atau cukup filter dari data yang sudah ada jika post_to_publish sudah ada di dalamnya.
-    
-    # Untuk memastikan data paling up-to-date, kita bisa muat ulang atau pastikan post_to_publish
-    # ditambahkan ke all_posts_preprocessed sebelum memfilter.
-    # Asumsi: all_posts_preprocessed di awal sudah berisi semua data dari Blogger.
-    # kita hanya perlu memastikan 'published_ids' sudah diperbarui.
-
-    # Dapatkan daftar semua postingan yang sekarang sudah diterbitkan
     all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
     
-    # Bangun halaman index dan label dengan semua artikel yang sudah diterbitkan
     build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
    
     print("\n🎉 Proses Selesai!")
