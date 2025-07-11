@@ -37,7 +37,7 @@ jobs:
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
       # LANGKAH 1: MEMULIHKAN CACHE
-      # --- PERBAIKAN PENTING: Kondisi 'if' yang lebih robust ---
+      # Lewati langkah ini jika input reset_published_posts adalah boolean true
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -49,7 +49,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
-        # BARIS BARU INI: Lewati jika input reset_published_posts adalah boolean true
         if: ${{ github.event.inputs.reset_published_posts != true }} 
 
       - name: Install dependencies
@@ -63,7 +62,7 @@ jobs:
       - name: Copy static assets
         run: cp src/static/logo.png dist/ || true
 
-      # --- DEBUGGING: Tampilkan nilai RESET_PUBLISHED_POSTS sebelum menjalankan script Python ---
+      # DEBUGGING: Tampilkan nilai RESET_PUBLISHED_POSTS sebelum menjalankan script Python
       - name: Debug RESET_PUBLISHED_POSTS Env Var
         run: echo "DEBUG: RESET_PUBLISHED_POSTS env var value: ${{ github.event.inputs.reset_published_posts }}"
 
@@ -75,18 +74,20 @@ jobs:
           RESET_PUBLISHED_POSTS: ${{ github.event.inputs.reset_published_posts }}
         run: python src/build.py
 
-      # LANGKAH COMMIT DAN PUSH FILE CACHE KE REPO (ini sudah benar)
+      # --- LANGKAH COMMIT DAN PUSH FILE CACHE KE REPO (dengan perbaikan git pull) ---
       - name: Commit and Push Cache Files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add published_posts.json all_blogger_posts_cache.json
           git commit -m "chore: Update Blogger cache files [skip ci]" || echo "No changes to commit"
+          # --- BARIS BARU INI: Lakukan pull sebelum push ---
+          git pull --rebase || true # Lakukan pull dan rebase, abaikan error jika tidak ada perubahan
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # LANGKAH 2: MENYIMPAN CACHE (ini juga sudah benar)
+      # LANGKAH 2: MENYIMPAN CACHE
       - name: Save Blogger Cache
         id: cache-save
         uses: actions/cache/save@v4
