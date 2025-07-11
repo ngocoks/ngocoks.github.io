@@ -310,8 +310,18 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
 def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list):
     print("Membangun ulang halaman index dan label untuk SEMUA artikel yang diterbitkan...")
 
+    # --- DEBUGGING: Tampilkan urutan sebelum sorting ---
+    print("\nDEBUG: Urutan postingan sebelum sorting:")
+    for post in all_published_posts_data[:5]: # Tampilkan 5 post pertama
+        print(f"  - {post.get('processed_title', 'N/A')} (Published: {post.get('published', 'N/A')})")
+
     all_published_posts_data.sort(key=lambda x: datetime.fromisoformat(x['published'].replace('Z', '+00:00')), reverse=True)
 
+    # --- DEBUGGING: Tampilkan urutan setelah sorting ---
+    print("\nDEBUG: Urutan postingan setelah sorting:")
+    for post in all_published_posts_data[:5]: # Tampilkan 5 post pertama
+        print(f"  - {post.get('processed_title', 'N/A')} (Published: {post.get('published', 'N/A')})")
+    
     # --- Render Halaman Index ---
     list_items_html_for_index = []
     for post in all_published_posts_data:
@@ -704,9 +714,6 @@ if __name__ == "__main__":
     else:
         print(f"Membangun ulang {len(all_published_posts_data)} halaman postingan individual...")
         for post in all_published_posts_data:
-            # --- PENTING: Gunakan processed_title yang sudah ada di cache untuk konsistensi ---
-            # Jika post ini sudah diedit Gemini di run sebelumnya, processed_title-nya sudah ada di objek post.
-            # Jika belum, processed_title-nya masih original_title.
             build_single_post_page(post)
         print("✅ Semua halaman postingan individual selesai dibangun ulang.")
 
