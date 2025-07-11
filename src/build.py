@@ -144,11 +144,13 @@ def save_json_cache(data, filename):
 def load_published_posts_state():
     """
     Memuat ID postingan yang sudah diterbitkan dari file state.
+    --- PERBAIKAN: Pastikan ID adalah string ---
     """
     if os.path.exists(PUBLISHED_LOG_FILE):
         with open(PUBLISHED_LOG_FILE, 'r', encoding='utf-8') as f:
             try:
-                return set(json.load(f))
+                # Pastikan setiap ID diubah menjadi string saat dimuat
+                return set(str(item) for item in json.load(f))
             except json.JSONDecodeError:
                 print(f"⚠️ Peringatan: File state '{PUBLISHED_LOG_FILE}' rusak. Membuat ulang.")
                 return set()
@@ -227,6 +229,9 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
             posts = data.get('items', [])
             for post in posts:
                 original_title = post.get('title', 'Untitled Post')
+                
+                # --- PERBAIKAN: Pastikan post ID adalah string saat disimpan ---
+                post['id'] = str(post['id']) # Pastikan ID selalu string
                 
                 # Di sini, processed_title sementara akan sama dengan original_title.
                 # Pengeditan oleh Gemini akan dilakukan nanti untuk 1 artikel yang akan dipublikasikan.
@@ -411,6 +416,7 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
     </body>
     </html>
     """
+    print(f"DEBUG: Length of generated index_html_content: {len(index_html_content)} bytes") # Debugging
     with open(os.path.join(OUTPUT_DIR, "index.html"), 'w', encoding='utf-8') as f:
         f.write(index_html_content)
     print("✅ Halaman index selesai dibangun ulang.")
@@ -533,11 +539,13 @@ def build_single_post_page(post):
     permalink_rel = f"/{output_filename}"
     permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
     
-    edited_first_300_words_pure_text = post.get('processed_content_with_gemini', '')
-    
-    # Ambil sisa teks artikel dari pure_text_content_for_gemini dan SENSOR sisanya
+    # --- DEBUGGING: Cek panjang konten di berbagai tahap ---
     full_original_pure_text = post.get('pure_text_content_for_gemini', '') 
-    
+    print(f"DEBUG: Original pure text length for '{post['processed_title']}': {len(full_original_pure_text)} bytes")
+
+    edited_first_300_words_pure_text = post.get('processed_content_with_gemini', '')
+    print(f"DEBUG: Edited 300 words pure text length: {len(edited_first_300_words_pure_text)} bytes")
+
     final_pure_text_for_article = ""
 
     if edited_first_300_words_pure_text:
@@ -553,9 +561,10 @@ def build_single_post_page(post):
             final_pure_text_for_article = edited_first_300_words_pure_text if edited_first_300_words_pure_text else apply_replacements_to_pure_text(full_original_pure_text)
             print(f"Artikel '{post['processed_title']}' kurang dari 300 kata, menggunakan hasil editan Gemini (jika ada) atau teks asli yang disensor.")
     else:
-        # Jika Gemini tidak mengedit, gunakan seluruh teks asli yang sudah disensor dari `filtered_pure_text_for_gemini_input`
         print(f"Gemini AI tidak mengedit artikel '{post['processed_title']}'. Menggunakan teks murni asli artikel yang sudah disensor.")
         final_pure_text_for_article = post.get('filtered_pure_text_for_gemini_input', full_original_pure_text)
+
+    print(f"DEBUG: Final pure text for article length: {len(final_pure_text_for_article)} bytes")
 
     temp_html_from_pure_text = ""
     for paragraph in final_pure_text_for_article.split('\n\n'):
@@ -563,7 +572,10 @@ def build_single_post_page(post):
             formatted_paragraph = paragraph.replace('\n', '<br>')
             temp_html_from_pure_text += f"<p>{formatted_paragraph}</p>\n"
             
+    print(f"DEBUG: temp_html_from_pure_text length: {len(temp_html_from_pure_text)} bytes") # Debugging
+
     final_article_content_html = remove_anchor_tags_and_apply_replacements_to_html(temp_html_from_pure_text)
+    print(f"DEBUG: final_article_content_html length: {len(final_article_content_html)} bytes") # Debugging
 
 
     print(f"Membangun artikel individual: {output_filename}")
@@ -621,6 +633,7 @@ def build_single_post_page(post):
     </body>
     </html>
     """
+    print(f"DEBUG: Total article_html length for '{post['processed_title']}': {len(article_html)} bytes") # Debugging
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(article_html)
 
@@ -631,20 +644,23 @@ if __name__ == "__main__":
     if os.path.exists(ALL_BLOGGER_POSTS_CACHE_FILE):
         print(f"Memuat semua postingan dari cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
         cached_list = load_json_cache(ALL_BLOGGER_POSTS_CACHE_FILE)
-        all_posts_preprocessed = {p['id']: p for p in cached_list}
+        # --- PERBAIKAN: Pastikan ID adalah string saat dimasukkan ke dictionary ---
+        all_posts_preprocessed = {str(p['id']): p for p in cached_list}
     print(f"DEBUG: all_posts_preprocessed (from cache) count: {len(all_posts_preprocessed)}")
 
     # 2. Ambil postingan terbaru dari Blogger API dan gabungkan dengan cache
     new_posts_from_blogger = get_all_blogger_posts_and_preprocess(API_KEY, BLOG_ID)
     print(f"DEBUG: new_posts_from_blogger count: {len(new_posts_from_blogger)}")
     for post in new_posts_from_blogger:
-        all_posts_preprocessed[post['id']] = post
+        # --- PERBAIKAN: Pastikan ID adalah string saat dimasukkan ke dictionary ---
+        all_posts_preprocessed[str(post['id'])] = post
     
     # Ubah kembali ke list untuk pemrosesan selanjutnya
     all_posts_preprocessed_list = list(all_posts_preprocessed.values())
     print(f"DEBUG: Total posts after merging (all_posts_preprocessed_list) count: {len(all_posts_preprocessed_list)}")
     
     # 3. Muat state postingan yang sudah diterbitkan
+    # --- PERBAIKAN: load_published_posts_state sudah memastikan ID adalah string ---
     published_ids = load_published_posts_state()
     print(f"DEBUG: published_ids count: {len(published_ids)}")
     if len(published_ids) > 0:
@@ -656,6 +672,7 @@ if __name__ == "__main__":
     all_unique_labels_across_all_posts = set()
 
     for post in all_posts_preprocessed_list:
+        # --- PERBAIKAN: Pastikan post_id_str adalah string ---
         post_id_str = str(post['id'])
         if post.get('labels'):
             for label in post['labels']:
@@ -698,7 +715,8 @@ if __name__ == "__main__":
         post_to_process_with_gemini['processed_content_with_gemini'] = edited_pure_text_from_gemini_300_words
 
         # Perbarui postingan di dictionary all_posts_preprocessed utama
-        all_posts_preprocessed[post_to_process_with_gemini['id']] = post_to_process_with_gemini
+        # --- PERBAIKAN: Pastikan ID adalah string saat dimasukkan ke dictionary ---
+        all_posts_preprocessed[str(post_to_process_with_gemini['id'])] = post_to_process_with_gemini
         
         # Tambahkan ke published_ids
         published_ids.add(str(post_to_process_with_gemini['id']))
@@ -717,6 +735,9 @@ if __name__ == "__main__":
 
     all_published_posts_data = [p for p in all_posts_preprocessed_list if str(p['id']) in published_ids]
     print(f"DEBUG: all_published_posts_data count (for HTML regeneration): {len(all_published_posts_data)}")
+    if len(all_published_posts_data) > 0:
+        print(f"DEBUG: Sample all_published_posts_data titles: {[p.get('processed_title', 'N/A') for p in all_published_posts_data[:5]]}")
+
 
     if not all_published_posts_data:
         print("Tidak ada artikel yang diterbitkan sama sekali. Tidak ada halaman postingan individual yang akan dibuat.")
