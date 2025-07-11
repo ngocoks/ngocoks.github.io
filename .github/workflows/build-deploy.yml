@@ -30,15 +30,14 @@ jobs:
         id: date
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
-      # Ini langkah untuk memulihkan cache yang sudah ada sebelumnya
-      # Pastikan ini dijalankan SEBELUM build script, agar script bisa menggunakan cache jika ada.
+      # LANGKAH 1: MEMULIHKAN CACHE
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
           path: |
-            dist/published_posts.json
-            dist/all_blogger_posts_cache.json
+            published_posts.json
+            all_blogger_posts_cache.json
           key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
@@ -62,15 +61,14 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python src/build.py
 
-      # --- PERBAIKAN UTAMA: Simpan Cache setelah script build selesai ---
-      # Ini penting: Cache hanya disimpan setelah file-file (yang di-generate oleh build.py) sudah ada.
+      # LANGKAH 2: MENYIMPAN CACHE
       - name: Save Blogger Cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
           path: |
-            dist/published_posts.json
-            dist/all_blogger_posts_cache.json
+            published_posts.json
+            all_blogger_posts_cache.json
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Upload artifact for GitHub Pages
