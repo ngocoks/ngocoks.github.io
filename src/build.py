@@ -21,6 +21,7 @@ CUSTOM_CSS_PATH = os.path.join(STATIC_DIR, "style.css")
 LOGO_PATH = os.path.join(STATIC_DIR, "logo.png") # Pastikan logo.png ada di folder static
 
 # File untuk menyimpan semua postingan dari Blogger dan log postingan yang sudah dipublikasikan
+# --- PERBAIKAN: CACHE DISIMPAN DI ROOT ---
 ALL_BLOGGER_POSTS_CACHE_FILE = "all_blogger_posts_cache.json" # Cache semua post dari Blogger
 PUBLISHED_LOG_FILE = "published_posts.json" # Log ID post yang sudah dipublikasikan
 
@@ -181,6 +182,7 @@ def edit_title_with_gemini(post_id, original_title):
 
     except Exception as e:
         print(f"⚠️ Gagal mengedit judul artikel '{original_title}' (ID: {post_id}) dengan Gemini AI: {e}")
+        # --- PERBAIKAN: KEMBALIKAN JUDUL ASLI JIKA GEMINI GAGAL ---
         return original_title
 
 def get_all_blogger_posts_and_preprocess(api_key, blog_id):
@@ -197,33 +199,40 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
             url += f"&pageToken={next_page_token}"
             
         print(f"Mengambil postingan dari Blogger API... {'(lanjutan)' if next_page_token else ''}")
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        
-        posts = data.get('items', [])
-        for post in posts:
-            original_title = post.get('title', 'Untitled Post')
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
             
-            # Di sini, processed_title sementara akan sama dengan original_title.
-            # Pengeditan oleh Gemini akan dilakukan nanti untuk 1 artikel yang akan dipublikasikan.
-            post['processed_title'] = original_title 
-            post['original_title'] = original_title
-            
-            # pure_text_content_for_gemini: Teks murni ASLI (tanpa sensor)
-            original_pure_text = extract_pure_text_from_html(post.get('content', ''))
-            post['pure_text_content_for_gemini'] = original_pure_text
+            posts = data.get('items', [])
+            for post in posts:
+                original_title = post.get('title', 'Untitled Post')
+                
+                # Di sini, processed_title sementara akan sama dengan original_title.
+                # Pengeditan oleh Gemini akan dilakukan nanti untuk 1 artikel yang akan dipublikasikan.
+                post['processed_title'] = original_title 
+                post['original_title'] = original_title
+                
+                # pure_text_content_for_gemini: Teks murni ASLI (tanpa sensor)
+                original_pure_text = extract_pure_text_from_html(post.get('content', ''))
+                post['pure_text_content_for_gemini'] = original_pure_text
 
-            # filtered_pure_text_for_gemini_input: Teks murni yang SUDAH DISENSOR, untuk DIKIRIM ke Gemini AI
-            post['filtered_pure_text_for_gemini_input'] = apply_replacements_to_pure_text(original_pure_text)
+                # filtered_pure_text_for_gemini_input: Teks murni yang SUDAH DISENSOR, untuk DIKIRIM ke Gemini AI
+                post['filtered_pure_text_for_gemini_input'] = apply_replacements_to_pure_text(original_pure_text)
 
-            # content_html_ready_for_pub: HTML asli yang sudah disensor dan tanpa link (fallback jika Gemini tidak mengedit)
-            post['content_html_ready_for_pub'] = remove_anchor_tags_and_apply_replacements_to_html(post.get('content', ''))
-            all_posts.append(post)
-            
-        next_page_token = data.get('nextPageToken')
-        if not next_page_token:
-            break
+                # content_html_ready_for_pub: HTML asli yang sudah disensor dan tanpa link (fallback jika Gemini tidak mengedit)
+                post['content_html_ready_for_pub'] = remove_anchor_tags_and_apply_replacements_to_html(post.get('content', ''))
+                all_posts.append(post)
+                
+            next_page_token = data.get('nextPageToken')
+            if not next_page_token:
+                break
+        except requests.exceptions.RequestException as e:
+            print(f"Error saat mengambil postingan dari Blogger API: {e}")
+            print("Tidak dapat mengambil postingan baru. Menggunakan data yang ada di cache jika tersedia.")
+            # Jika API gagal, kita tidak bisa mendapatkan postingan terbaru, 
+            # jadi kita akan mengandalkan cache yang sudah ada di main()
+            break 
             
     print(f"✅ Berhasil mengambil {len(all_posts)} postingan dari Blogger API.")
     return all_posts
@@ -277,6 +286,8 @@ def edit_first_300_words_with_gemini(post_id, title, pure_text_to_edit):
 
     except Exception as e:
         print(f"⚠️ Gagal mengedit artikel '{title}' (ID: {post_id}) dengan Gemini AI: {e}")
+        # --- PERBAIKAN: KEMBALIKAN STRING KOSONG JIKA GEMINI GAGAL MENGEDIT KONTEN ---
+        # Ini akan membuat logika di build_single_post_page menggunakan konten asli yang disensor
         return ""
 
 # --- Fungsi untuk Membangun Halaman Index dan Label ---
@@ -585,22 +596,31 @@ def build_single_post_page(post):
 
 # --- Main Logic ---
 if __name__ == "__main__":
-    # ... (kode inisialisasi dan pembersihan folder output) ...
+    # --- PERBAIKAN: HAPUS SHUTIL.RMTEE ---
+    # Jangan hapus folder dist di awal, karena kita akan menggunakan cache dari sana
+    # shutil.rmtree(OUTPUT_DIR, ignore_errors=True) 
 
     # 2. Muat atau ambil semua postingan dari Blogger API
     # all_posts_preprocessed akan berisi semua post, termasuk yang sudah di-cache dengan edit Gemini
+    all_posts_preprocessed = {} # Inisialisasi sebagai dictionary untuk akses mudah berdasarkan ID
     if os.path.exists(ALL_BLOGGER_POSTS_CACHE_FILE):
         print(f"Memuat semua postingan dari cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
-        with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'r', encoding='utf-8') as f:
-            all_posts_preprocessed = json.load(f)
-    else:
-        print(f"Cache '{ALL_BLOGGER_POSTS_CACHE_FILE}' tidak ditemukan. Mengambil semua postingan dari Blogger API...")
-        all_posts_preprocessed = get_all_blogger_posts_and_preprocess(API_KEY, BLOG_ID)
-        # Jangan simpan di sini dulu, simpan setelah ada editan Gemini
-        # with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
-        #     json.dump(all_posts_preprocessed, f, indent=4, ensure_ascii=False)
-        # print(f"✅ Semua postingan disimpan ke cache '{ALL_BLOGGER_POSTS_CACHE_FILE}'.")
+        # Mengubah list of dicts menjadi dict of dicts untuk akses O(1)
+        cached_list = load_json_cache(ALL_BLOGGER_POSTS_CACHE_FILE)
+        all_posts_preprocessed = {p['id']: p for p in cached_list}
+    
+    # Ambil postingan terbaru dari Blogger API
+    # Jika Blogger API gagal, get_all_blogger_posts_and_preprocess akan mengembalikan list kosong
+    # dan kita akan mengandalkan data dari cache yang sudah dimuat di atas.
+    new_posts_from_blogger = get_all_blogger_posts_and_preprocess(API_KEY, BLOG_ID)
+    
+    # Gabungkan data baru dengan data cache, data baru akan menimpa yang lama jika ID sama
+    for post in new_posts_from_blogger:
+        all_posts_preprocessed[post['id']] = post
 
+    # Ubah kembali ke list untuk pemrosesan selanjutnya
+    all_posts_preprocessed_list = list(all_posts_preprocessed.values())
+    
     # 3. Muat state postingan yang sudah diterbitkan
     published_ids = load_published_posts_state()
 
@@ -608,7 +628,7 @@ if __name__ == "__main__":
     unpublished_posts = []
     all_unique_labels_across_all_posts = set()
 
-    for post in all_posts_preprocessed:
+    for post in all_posts_preprocessed_list: # Gunakan list yang sudah digabungkan
         post_id_str = str(post['id'])
         if post.get('labels'):
             for label in post['labels']:
@@ -621,10 +641,10 @@ if __name__ == "__main__":
     # dengan data yang sudah ada di all_posts_preprocessed (termasuk hasil edit Gemini jika sudah pernah disimpan)
     if not unpublished_posts:
         print("Tidak ada artikel baru yang perlu diterbitkan hari ini.")
-        if all_posts_preprocessed:
+        if all_posts_preprocessed_list:
             # Pastikan processed_title pada artikel yang sudah terbit menggunakan processed_title yang TERSIMPAN di cache
             # (BUKAN original_title dari Blogger)
-            all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
+            all_published_posts_data = [p for p in all_posts_preprocessed_list if str(p['id']) in published_ids]
             build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
         
         print("🎉 Proses Selesai! (Tidak ada artikel baru yang diterbitkan)")
@@ -639,32 +659,41 @@ if __name__ == "__main__":
     print(f"🌟 Menerbitkan artikel berikutnya: '{post_to_publish.get('original_title')}' (ID: {post_to_publish.get('id')})\n")
     
     # --- PENTING: Edit Judul oleh Gemini AI HANYA untuk artikel ini ---
-    edited_title_by_gemini = edit_title_with_gemini(
-        post_to_publish['id'], 
-        post_to_publish['original_title']
-    )
+    # --- PERBAIKAN: Terapkan try-except untuk edit_title_with_gemini ---
+    edited_title_by_gemini = post_to_publish['original_title'] # Default ke judul asli
+    try:
+        edited_title_by_gemini = edit_title_with_gemini(
+            post_to_publish['id'], 
+            post_to_publish['original_title']
+        )
+    except Exception as e:
+        print(f"⚠️ Gagal mengedit judul dengan Gemini AI (error di luar fungsi): {e}")
+        # Judul asli akan tetap digunakan
     post_to_publish['processed_title'] = edited_title_by_gemini # Update judul yang akan dipakai
 
     # Lakukan pengeditan AI pada teks murni yang SUDAH DISENSOR yang disiapkan untuk Gemini (hanya 300 kata pertama)
-    edited_pure_text_from_gemini_300_words = edit_first_300_words_with_gemini(
-        post_to_publish['id'],
-        post_to_publish['processed_title'], # Kirim judul yang sudah diedit ke fungsi ini untuk logging
-        post_to_publish['filtered_pure_text_for_gemini_input'] # Kirim teks yang sudah disensor ke Gemini
-    )
-    
+    # --- PERBAIKAN: Terapkan try-except untuk edit_first_300_words_with_gemini ---
+    edited_pure_text_from_gemini_300_words = "" # Default ke string kosong
+    try:
+        edited_pure_text_from_gemini_300_words = edit_first_300_words_with_gemini(
+            post_to_publish['id'],
+            post_to_publish['processed_title'], # Kirim judul yang sudah diedit ke fungsi ini untuk logging
+            post_to_publish['filtered_pure_text_for_gemini_input'] # Kirim teks yang sudah disensor ke Gemini
+        )
+    except Exception as e:
+        print(f"⚠️ Gagal mengedit konten dengan Gemini AI (error di luar fungsi): {e}")
+        # Konten asli yang disensor akan tetap digunakan di build_single_post_page karena processed_content_with_gemini kosong
+
     post_to_publish['processed_content_with_gemini'] = edited_pure_text_from_gemini_300_words
 
     # --- KRUSIAL: PERBARUI OBJEK POST DALAM all_posts_preprocessed DAN SIMPAN CACHE ---
     # Temukan indeks post_to_publish dalam list all_posts_preprocessed
     # (Perhatikan, ini mungkin tidak ideal jika list sangat besar, tapi cukup untuk kasus ini)
-    for i, p in enumerate(all_posts_preprocessed):
-        if p['id'] == post_to_publish['id']:
-            all_posts_preprocessed[i] = post_to_publish # Ganti objek post lama dengan yang baru (sudah diedit)
-            break
+    # --- PERBAIKAN: Menggunakan dictionary untuk update lebih efisien ---
+    all_posts_preprocessed[post_to_publish['id']] = post_to_publish
             
     # Simpan seluruh all_posts_preprocessed yang sudah diperbarui kembali ke file cache
-    with open(ALL_BLOGGER_POSTS_CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(all_posts_preprocessed, f, indent=4, ensure_ascii=False)
+    save_json_cache(list(all_posts_preprocessed.values()), ALL_BLOGGER_POSTS_CACHE_FILE)
     print(f"✅ Cache '{ALL_BLOGGER_POSTS_CACHE_FILE}' diperbarui dengan data Gemini AI.")
 
     # 6. Hasilkan file HTML untuk postingan yang dipilih
@@ -679,10 +708,11 @@ if __name__ == "__main__":
     # 8. Bangun ulang halaman index dan label dengan SEMUA artikel yang sudah diterbitkan.
     # Sekarang, all_posts_preprocessed sudah berisi data yang diedit Gemini jika ada.
     # Dan tidak ada lagi baris yang mengembalikan processed_title ke original_title di sini.
-    all_published_posts_data = [p for p in all_posts_preprocessed if str(p['id']) in published_ids]
+    all_published_posts_data = [p for p in all_posts_preprocessed_list if str(p['id']) in published_ids]
     
     build_index_and_label_pages(all_published_posts_data, list(all_unique_labels_across_all_posts))
    
     print("\n🎉 Proses Selesai!")
     print(f"File HTML sudah ada di folder: **{OUTPUT_DIR}/**")
     print("GitHub Actions akan melakukan commit dan push file-file ini ke repositori Anda.")
+
