@@ -120,6 +120,23 @@ def sanitize_filename(title):
     filename = re.sub(r'[^\w\-]', '_', slugify(title))
     return filename[:100]
 
+def load_json_cache(filename):
+    """Memuat data JSON dari file cache."""
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                print(f"Peringatan: Gagal membaca cache {filename}. Membuat cache baru.")
+                return {}
+    return {}
+
+def save_json_cache(data, filename):
+    """Menyimpan data JSON ke file cache."""
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"Cache {filename} berhasil disimpan.")
+
 def load_published_posts_state():
     """
     Memuat ID postingan yang sudah diterbitkan dari file state.
@@ -231,7 +248,7 @@ def get_all_blogger_posts_and_preprocess(api_key, blog_id):
             print(f"Error saat mengambil postingan dari Blogger API: {e}")
             print("Tidak dapat mengambil postingan baru. Menggunakan data yang ada di cache jika tersedia.")
             # Jika API gagal, kita tidak bisa mendapatkan postingan terbaru, 
-            # jadi kita akan mengandalkan cache yang sudah ada di main()
+            # jadi kita akan mengandalkan data dari cache yang sudah dimuat di main()
             break 
             
     print(f"✅ Berhasil mengambil {len(all_posts)} postingan dari Blogger API.")
@@ -715,4 +732,3 @@ if __name__ == "__main__":
     print("\n🎉 Proses Selesai!")
     print(f"File HTML sudah ada di folder: **{OUTPUT_DIR}/**")
     print("GitHub Actions akan melakukan commit dan push file-file ini ke repositori Anda.")
-
