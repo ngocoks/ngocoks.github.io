@@ -37,7 +37,7 @@ jobs:
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
       # LANGKAH 1: MEMULIHKAN CACHE
-      # --- PERBAIKAN PENTING: Lewati langkah ini jika reset_published_posts TRUE ---
+      # --- PERBAIKAN PENTING: Kondisi 'if' yang lebih robust ---
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -49,7 +49,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
-        if: ${{ github.event.inputs.reset_published_posts != 'true' }} # BARIS BARU INI
+        # BARIS BARU INI: Lewati jika input reset_published_posts adalah boolean true
+        if: ${{ github.event.inputs.reset_published_posts != true }} 
 
       - name: Install dependencies
         run: |
@@ -61,6 +62,10 @@ jobs:
 
       - name: Copy static assets
         run: cp src/static/logo.png dist/ || true
+
+      # --- DEBUGGING: Tampilkan nilai RESET_PUBLISHED_POSTS sebelum menjalankan script Python ---
+      - name: Debug RESET_PUBLISHED_POSTS Env Var
+        run: echo "DEBUG: RESET_PUBLISHED_POSTS env var value: ${{ github.event.inputs.reset_published_posts }}"
 
       - name: Run content build script
         env:
