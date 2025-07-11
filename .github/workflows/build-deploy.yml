@@ -5,12 +5,18 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      reset_published_posts:
+        description: 'Set to true to clear published_posts.json and all_blogger_posts_cache.json and re-process all posts from scratch.'
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 0 * * *'
 
 # Berikan izin yang diperlukan untuk GITHUB_TOKEN
 permissions:
-  contents: write # Diperlukan untuk meng-commit perubahan
+  contents: write
   pages: write
   id-token: write
 
@@ -31,6 +37,7 @@ jobs:
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
       # LANGKAH 1: MEMULIHKAN CACHE
+      # --- PERBAIKAN PENTING: Lewati langkah ini jika reset_published_posts TRUE ---
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -42,6 +49,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
+        if: ${{ github.event.inputs.reset_published_posts != 'true' }} # BARIS BARU INI
 
       - name: Install dependencies
         run: |
@@ -59,9 +67,10 @@ jobs:
           BLOGGER_API_KEY: ${{ secrets.BLOGGER_API_KEY }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESET_PUBLISHED_POSTS: ${{ github.event.inputs.reset_published_posts }}
         run: python src/build.py
 
-      # --- LANGKAH BARU: COMMIT DAN PUSH FILE CACHE KE REPO ---
+      # LANGKAH COMMIT DAN PUSH FILE CACHE KE REPO (ini sudah benar)
       - name: Commit and Push Cache Files
         run: |
           git config user.name "github-actions[bot]"
@@ -70,9 +79,9 @@ jobs:
           git commit -m "chore: Update Blogger cache files [skip ci]" || echo "No changes to commit"
           git push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Token otomatis dari GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # LANGKAH 2: MENYIMPAN CACHE (untuk penggunaan di run berikutnya)
+      # LANGKAH 2: MENYIMPAN CACHE (ini juga sudah benar)
       - name: Save Blogger Cache
         id: cache-save
         uses: actions/cache/save@v4
