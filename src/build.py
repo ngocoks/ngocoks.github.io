@@ -91,12 +91,9 @@ def remove_anchor_tags_and_apply_replacements_to_html(html_content):
 def load_custom_css():
     """
     Memuat konten CSS kustom dari file.
+    (Tidak digunakan dalam mode diagnostik HTML minimal)
     """
-    if os.path.exists(CUSTOM_CSS_PATH):
-        with open(CUSTOM_CSS_PATH, 'r', encoding='utf-8') as f:
-            return f.read()
-    print(f"⚠️ Peringatan: File CSS kustom tidak ditemukan di '{CUSTOM_CSS_PATH}'.")
-    return ""
+    return "" # Mengembalikan string kosong agar tidak ada CSS kustom
 
 def get_post_image_url(post):
     """
@@ -348,24 +345,20 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
         thumbnail_tag = ""
         if thumbnail_url:
             thumbnail_tag = f"""
-            <div class="post-thumbnail">
-                <img src="{thumbnail_url}" alt="{post['processed_title']}" loading="lazy">
-            </div>
+            <img src="{thumbnail_url}" alt="{post['processed_title']}" style="max-width: 100px; height: auto; margin-right: 10px;">
             """
         category_html = ""
         if post.get('labels'):
-            category_html = f'<span class="category">{post["labels"][0]}</span>'
+            category_html = f'<span>Kategori: {post["labels"][0]}</span>'
             
         list_items_html_for_index.append(f"""
-        <div class="post-item">
+        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; display: flex; align-items: center;">
             {thumbnail_tag}
-            <div class="post-content">
-                <div class="post-meta">
-                    {category_html}
-                </div>
-                <h2><a href="{permalink_rel}">{post['processed_title']}</a></h2>
+            <div>
+                <h3><a href="{permalink_rel}" style="color: blue; text-decoration: underline;">{post['processed_title']}</a></h3>
                 <p>{snippet_for_index}</p>
                 <p><small>By {post['author']['displayName']} - {datetime.fromisoformat(post['published'].replace('Z', '+00:00')).strftime('%d %b, %Y')}</small></p>
+                {category_html}
             </div>
         </div>
         """)
@@ -384,35 +377,22 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
         <meta property="og:description" content="Kumpulan cerita dewasa terbaru 2025 dengan gaya bahasa menarik.">
         <meta property="og:url" content="{BASE_SITE_URL}/">
         <meta property="og:type" content="website">
-        <style>{load_custom_css()}</style>
+        <style>
+            body {{ font-family: sans-serif; margin: 20px; }}
+            h1 {{ color: #333; }}
+            a {{ text-decoration: none; }}
+        </style>
     </head>
     <body>
-        <div class="container">
-            <header>
-                <div class="logo-area">
-                    <a href="/"><img src="/logo.png" alt="{BLOG_NAME} Logo" class="logo"></a>
-                    <h1><a href="/">{BLOG_NAME}</a></h1>
-                </div>
-                <nav>
-                    <ul>
-                        <li><a href="/">Beranda</a></li>
-                        <li><a href="/sitemap.xml">Sitemap</a></li>
-                        <li><a href="/labels.html">Kategori</a></li>
-                    </ul>
-                </nav>
-            </header>
-            <main>
-                <section class="latest-posts">
-                    <h2>Artikel Terbaru</h2>
-                    <div class="post-list">
-                        {"".join(list_items_html_for_index)}
-                    </div>
-                </section>
-            </main>
-            <footer>
-                <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
-            </footer>
+        <h1>{BLOG_NAME} - Beranda</h1>
+        <p>Selamat datang di blog kami!</p>
+        <h2>Artikel Terbaru</h2>
+        <div>
+            {"".join(list_items_html_for_index)}
         </div>
+        <footer>
+            <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
+        </footer>
     </body>
     </html>
     """
@@ -451,22 +431,18 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
             thumbnail_tag = ""
             if thumbnail_url:
                 thumbnail_tag = f"""
-                <div class="post-thumbnail">
-                    <img src="{thumbnail_url}" alt="{post['processed_title']}" loading="lazy">
-                </div>
+                <img src="{thumbnail_url}" alt="{post['processed_title']}" style="max-width: 100px; height: auto; margin-right: 10px;">
                 """
-            category_html = f'<span class="category">{label_name}</span>'
+            category_html = f'<span>Kategori: {label_name}</span>'
             
             list_items_html_label.append(f"""
-            <div class="post-item">
+            <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; display: flex; align-items: center;">
                 {thumbnail_tag}
-                <div class="post-content">
-                    <div class="post-meta">
-                        {category_html}
-                    </div>
-                    <h2><a href="{permalink_rel}">{post['processed_title']}</a></h2>
+                <div>
+                    <h3><a href="{permalink_rel}" style="color: blue; text-decoration: underline;">{post['processed_title']}</a></h3>
                     <p>{snippet_for_label}</p>
                     <p><small>By {post['author']['displayName']} - {datetime.fromisoformat(post['published'].replace('Z', '+00:00')).strftime('%d %b, %Y')}</small></p>
+                    {category_html}
                 </div>
             </div>
             """)
@@ -485,35 +461,20 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
             <meta property="og:description" content="Artikel dalam kategori {label_name} di {BLOG_NAME}.">
             <meta property="og:url" content="{permalink_abs_label}">
             <meta property="og:type" content="website">
-            <style>{load_custom_css()}</style>
+            <style>
+                body {{ font-family: sans-serif; margin: 20px; }}
+                h1 {{ color: #333; }}
+                a {{ text-decoration: none; }}
+            </style>
         </head>
         <body>
-            <div class="container">
-                <header>
-                    <div class="logo-area">
-                        <a href="/"><img src="/logo.png" alt="{BLOG_NAME} Logo" class="logo"></a>
-                        <h1><a href="/">{BLOG_NAME}</a></h1>
-                    </div>
-                    <nav>
-                        <ul>
-                            <li><a href="/">Beranda</a></li>
-                            <li><a href="/sitemap.xml">Sitemap</a></li>
-                            <li><a href="/labels.html">Kategori</a></li>
-                        </ul>
-                    </nav>
-                </header>
-                <main>
-                    <section class="category-posts">
-                        <h2>Artikel dalam Kategori: {label_name}</h2>
-                        <div class="post-list">
-                            {"".join(list_items_html_label)}
-                        </div>
-                    </section>
-                </main>
-                <footer>
-                    <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
-                </footer>
+            <h1>Kategori: {label_name} - {BLOG_NAME}</h1>
+            <div>
+                {"".join(list_items_html_label)}
             </div>
+            <footer>
+                <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
+            </footer>
         </body>
         </html>
         """
@@ -594,42 +555,29 @@ def build_single_post_page(post):
         <meta property="og:url" content="{permalink_abs}">
         <meta property="og:type" content="article">
         {f'<meta property="og:image" content="{get_post_image_url(post)}">' if get_post_image_url(post) else ''}
-        <style>{load_custom_css()}</style>
+        <style>
+            body {{ font-family: sans-serif; margin: 20px; }}
+            h1 {{ color: #333; }}
+            p {{ line-height: 1.6; }}
+        </style>
     </head>
     <body>
-        <div class="container">
-            <header>
-                <div class="logo-area">
-                    <a href="/"><img src="/logo.png" alt="{BLOG_NAME} Logo" class="logo"></a>
-                    <h1><a href="/">{BLOG_NAME}</a></h1>
-                </div>
-                <nav>
-                    <ul>
-                        <li><a href="/">Beranda</a></li>
-                        <li><a href="/sitemap.xml">Sitemap</a></li>
-                        <li><a href="/labels.html">Kategori</a></li>
-                    </ul>
-                </nav>
-            </header>
-            <main>
-                <article>
-                    <header>
-                        <h1>{post['processed_title']}</h1>
-                        <p class="post-meta">
-                            By {post['author']['displayName']} - 
-                            {datetime.fromisoformat(post['published'].replace('Z', '+00:00')).strftime('%d %b, %Y')}
-                            {f' - Kategori: {", ".join(post["labels"])}' if post.get('labels') else ''}
-                        </p>
-                    </header>
-                    <div class="article-content">
-                        {final_article_content_html}
-                    </div>
-                </article>
-            </main>
-            <footer>
-                <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
-            </footer>
-        </div>
+        <header>
+            <h1>{post['processed_title']}</h1>
+            <p style="font-size: 0.9em; color: #666;">
+                By {post['author']['displayName']} - 
+                {datetime.fromisoformat(post['published'].replace('Z', '+00:00')).strftime('%d %b, %Y')}
+                {f' - Kategori: {", ".join(post["labels"])}' if post.get('labels') else ''}
+            </p>
+        </header>
+        <main>
+            <div class="article-content">
+                {final_article_content_html}
+            </div>
+        </main>
+        <footer>
+            <p>&copy; {datetime.now().year} {BLOG_NAME}. All rights reserved.</p>
+        </footer>
     </body>
     </html>
     """
