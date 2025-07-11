@@ -1,5 +1,5 @@
 name: Deploy Static Content to GitHub Pages
- 
+
 on:
   push:
     branches:
@@ -37,7 +37,7 @@ jobs:
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
       # LANGKAH 1: MEMULIHKAN CACHE
-      # Lewati langkah ini jika input reset_published_posts adalah boolean true
+      # --- PERBAIKAN PENTING: Lewati langkah ini jika reset_published_posts TRUE ---
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -49,6 +49,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
+        # BARIS INI (yang mungkin error di L67 kamu): Pastikan indentasinya 8 spasi dari kiri
         if: ${{ github.event.inputs.reset_published_posts != true }} 
 
       - name: Install dependencies
@@ -81,8 +82,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add published_posts.json all_blogger_posts_cache.json
           git commit -m "chore: Update Blogger cache files [skip ci]" || echo "No changes to commit"
-          # --- BARIS BARU INI: Lakukan pull sebelum push ---
-          git pull --rebase || true # Lakukan pull dan rebase, abaikan error jika tidak ada perubahan
+          # Lakukan pull sebelum push
+          git pull --rebase || true 
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
