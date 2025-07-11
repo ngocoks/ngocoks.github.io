@@ -38,7 +38,8 @@ jobs:
           path: |
             published_posts.json
             all_blogger_posts_cache.json
-          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}
+          # --- PERBAIKAN DI SINI: MENAMBAHKAN github.run_number ---
+          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
@@ -69,7 +70,8 @@ jobs:
           path: |
             published_posts.json
             all_blogger_posts_cache.json
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+          # --- PERBAIKAN DI SINI JUGA: MENAMBAHKAN github.run_number ---
+          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
 
       - name: Upload artifact for GitHub Pages
         uses: actions/upload-pages-artifact@v3
