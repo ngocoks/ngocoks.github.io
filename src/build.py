@@ -13,6 +13,8 @@ API_KEY = os.getenv("BLOGGER_API_KEY")
 BLOG_ID = os.getenv("BLOGGER_BLOG_ID")
 OUTPUT_DIR = "dist" # Output situs statis yang akan di-deploy ke GitHub Pages
 # URL dasar situs Anda di GitHub Pages. GANTI INI DENGAN URL REPO ANDA!
+# Jika repo Anda adalah 'username.github.io', biarkan seperti ini.
+# Jika repo Anda adalah 'username.github.io/nama-repo', ubah menjadi 'https://username.github.io/nama-repo'
 BASE_SITE_URL = "https://ngocoks.github.io" # <<< GANTI INI DENGAN DOMAIN/SUBDOMAIN GITHUB PAGES ANDA!
 BLOG_NAME = "Cerita Dewasa 2025" # <<< GANTI DENGAN NAMA BLOG ANDA
 # Path ke file CSS dan logo (akan di-inline atau disalin)
@@ -117,8 +119,10 @@ def sanitize_filename(title):
     """
     Membersihkan judul untuk digunakan sebagai nama file yang aman.
     """
-    filename = re.sub(r'[^\w\-]', '_', slugify(title))
-    return filename[:100]
+    # Menggunakan slugify untuk konversi dasar, lalu membersihkan lebih lanjut
+    filename = slugify(title)
+    filename = re.sub(r'[^a-z0-9\-]', '', filename) # Hanya izinkan huruf kecil, angka, dan hyphen
+    return filename[:100] # Batasi panjang filename
 
 def load_json_cache(filename):
     """Memuat data JSON dari file cache."""
@@ -321,6 +325,9 @@ def build_index_and_label_pages(all_published_posts_data, all_unique_labels_list
         post_slug = sanitize_filename(post['processed_title'])
         permalink_rel = f"/{post_slug}-{post['id']}.html"
         
+        # --- DEBUGGING: Tampilkan permalink yang dihasilkan ---
+        print(f"DEBUG: Index link untuk '{post['processed_title']}' (ID: {post['id']}) akan menjadi: {permalink_rel}")
+
         snippet_for_index = post.get('description_snippet', '')
         if not snippet_for_index:
             # Prioritas: 1. processed_content_with_gemini (jika ada hasil edit Gemini)
@@ -516,6 +523,12 @@ def build_single_post_page(post):
     post_slug = sanitize_filename(post['processed_title']) # Menggunakan judul yang sudah diedit Gemini
     output_filename = f"{post_slug}-{post['id']}.html"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
+
+    # --- DEBUGGING: Tampilkan filename dan path yang dihasilkan ---
+    print(f"DEBUG: Generating single post HTML for title='{post['processed_title']}' (ID: {post['id']})")
+    print(f"DEBUG: Calculated post_slug: {post_slug}")
+    print(f"DEBUG: Final output_filename: {output_filename}")
+    print(f"DEBUG: Full output_path: {output_path}")
 
     permalink_rel = f"/{output_filename}"
     permalink_abs = f"{BASE_SITE_URL}{permalink_rel}"
