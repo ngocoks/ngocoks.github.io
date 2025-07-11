@@ -3,10 +3,9 @@ name: Deploy Static Content to GitHub Pages
 on:
   push:
     branches:
-      - main # Trigger workflow setiap kali ada push ke branch 'main'
-  workflow_dispatch: # Mengizinkan eksekusi manual dari UI GitHub
+      - main
+  workflow_dispatch:
   schedule:
-    # Setiap hari pada pukul 00:00 UTC (jam 7 pagi WIB)
     - cron: '0 0 * * *'
 
 # Berikan izin yang diperlukan untuk GITHUB_TOKEN
@@ -27,21 +26,19 @@ jobs:
         with:
           python-version: '3.x'
 
-      # Langkah untuk mengatur variabel lingkungan tanggal (sudah kita perbaiki sebelumnya)
       - name: Set date for cache key
         id: date
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
-
-      # --- PERBAIKAN PENTING: Perbarui path cache ke folder 'dist' ---
-      - name: Cache Blogger State and Cache Files
-        id: cache-blogger-data
-        uses: actions/cache@v4
+      
+      # Ini langkah untuk memulihkan cache yang sudah ada sebelumnya
+      # Pastikan ini dijalankan SEBELUM build script, agar script bisa menggunakan cache jika ada.
+      - name: Restore Blogger Cache (if available)
+        id: cache-restore
+        uses: actions/cache/restore@v4
         with:
-          # Mengatur path cache ke folder 'dist'
           path: |
             dist/published_posts.json
             dist/all_blogger_posts_cache.json
-          # Menggunakan kunci berdasarkan tanggal untuk memastikan persistensi antar run
           key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
@@ -64,6 +61,17 @@ jobs:
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python src/build.py
+
+      # --- PERBAIKAN UTAMA: Simpan Cache setelah script build selesai ---
+      # Ini penting: Cache hanya disimpan setelah file-file (yang di-generate oleh build.py) sudah ada.
+      - name: Save Blogger Cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            dist/published_posts.json
+            dist/all_blogger_posts_cache.json
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Upload artifact for GitHub Pages
         uses: actions/upload-pages-artifact@v3
