@@ -1,5 +1,5 @@
 name: Deploy Static Content to GitHub Pages
-
+ 
 on:
   push:
     branches:
