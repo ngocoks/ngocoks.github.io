@@ -5,12 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      reset_published_posts:
-        description: 'Set to true to clear published_posts.json and all_blogger_posts_cache.json and re-process all posts from scratch.'
-        required: false
-        type: boolean
-        default: false
   schedule:
     - cron: '0 0 * * *'
 
@@ -37,7 +31,6 @@ jobs:
         run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       
       # LANGKAH 1: MEMULIHKAN CACHE
-      # --- PERBAIKAN PENTING: Lewati langkah ini jika reset_published_posts TRUE ---
       - name: Restore Blogger Cache (if available)
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -45,12 +38,11 @@ jobs:
           path: |
             published_posts.json
             all_blogger_posts_cache.json
+          # --- PERBAIKAN DI SINI: MENAMBAHKAN github.run_number ---
           key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
           restore-keys: |
             ${{ runner.os }}-blogger-data-${{ github.ref }}-
             ${{ runner.os }}-blogger-data-
-        # BARIS INI: Pastikan indentasinya 8 spasi dari kiri (sejajar dengan 'uses:' dan 'with:')
-        if: ${{ github.event.inputs.reset_published_posts != true }} 
 
       - name: Install dependencies
         run: |
@@ -63,30 +55,12 @@ jobs:
       - name: Copy static assets
         run: cp src/static/logo.png dist/ || true
 
-      # DEBUGGING: Tampilkan nilai RESET_PUBLISHED_POSTS sebelum menjalankan script Python
-      - name: Debug RESET_PUBLISHED_POSTS Env Var
-        run: echo "DEBUG: RESET_PUBLISHED_POSTS env var value: ${{ github.event.inputs.reset_published_posts }}"
-
       - name: Run content build script
         env:
           BLOGGER_API_KEY: ${{ secrets.BLOGGER_API_KEY }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          RESET_PUBLISHED_POSTS: ${{ github.event.inputs.reset_published_posts }}
         run: python src/build.py
-
-      # --- LANGKAH COMMIT DAN PUSH FILE CACHE KE REPO (dengan perbaikan git pull) ---
-      - name: Commit and Push Cache Files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add published_posts.json all_blogger_posts_cache.json
-          git commit -m "chore: Update Blogger cache files [skip ci]" || echo "No changes to commit"
-          # Lakukan pull sebelum push
-          git pull --rebase || true 
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # LANGKAH 2: MENYIMPAN CACHE
       - name: Save Blogger Cache
@@ -96,6 +70,7 @@ jobs:
           path: |
             published_posts.json
             all_blogger_posts_cache.json
+          # --- PERBAIKAN DI SINI JUGA: MENAMBAHKAN github.run_number ---
           key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
 
       - name: Upload artifact for GitHub Pages
