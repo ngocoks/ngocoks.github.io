@@ -1,6 +1,6 @@
 import requests
 import json
-import os
+import os 
 from bs4 import BeautifulSoup
 from slugify import slugify
 from datetime import datetime
