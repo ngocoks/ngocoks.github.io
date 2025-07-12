@@ -1,0 +1,116 @@
+name: Deploy Static Content to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      reset_published_posts:
+        description: 'Set to true to clear published_posts.json and all_blogger_posts_cache.json and re-process all posts from scratch.'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 0 * * *'
+
+# Berikan izin yang diperlukan untuk GITHUB_TOKEN
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Set date for cache key
+        id: date
+        run: echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
+      
+      # LANGKAH 1: MEMULIHKAN CACHE
+      # --- PERBAIKAN PENTING: Lewati langkah ini jika reset_published_posts TRUE ---
+      - name: Restore Blogger Cache (if available)
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            published_posts.json
+            all_blogger_posts_cache.json
+          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
+          restore-keys: |
+            ${{ runner.os }}-blogger-data-${{ github.ref }}-
+            ${{ runner.os }}-blogger-data-
+        # BARIS INI: Pastikan indentasinya 8 spasi dari kiri (sejajar dengan 'uses:' dan 'with:')
+        if: ${{ github.event.inputs.reset_published_posts != true }} 
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create dist directory
+        run: mkdir -p dist
+
+      - name: Copy static assets
+        run: cp src/static/logo.png dist/ || true
+
+      # DEBUGGING: Tampilkan nilai RESET_PUBLISHED_POSTS sebelum menjalankan script Python
+      - name: Debug RESET_PUBLISHED_POSTS Env Var
+        run: echo "DEBUG: RESET_PUBLISHED_POSTS env var value: ${{ github.event.inputs.reset_published_posts }}"
+
+      - name: Run content build script
+        env:
+          BLOGGER_API_KEY: ${{ secrets.BLOGGER_API_KEY }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESET_PUBLISHED_POSTS: ${{ github.event.inputs.reset_published_posts }}
+        run: python src/gondes.py
+
+      # --- LANGKAH COMMIT DAN PUSH FILE CACHE KE REPO (dengan perbaikan git pull) ---
+      - name: Commit and Push Cache Files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add published_posts.json all_blogger_posts_cache.json
+          git commit -m "chore: Update Blogger cache files [skip ci]" || echo "No changes to commit"
+          # Lakukan pull sebelum push
+          git pull --rebase || true 
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # LANGKAH 2: MENYIMPAN CACHE
+      - name: Save Blogger Cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            published_posts.json
+            all_blogger_posts_cache.json
+          key: ${{ runner.os }}-blogger-data-${{ github.ref }}-${{ env.TODAY }}-${{ github.run_number }}
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+ 
